@@ -3,7 +3,8 @@
     Information,
     Explanation,
     Warning,
-    Error
+    Error,
+    Custom
 }
 
 public class GameConsoleOutput

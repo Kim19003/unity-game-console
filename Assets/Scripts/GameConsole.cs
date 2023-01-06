@@ -7,18 +7,74 @@ using Color = UnityEngine.Color;
 
 public class GameConsole : MonoBehaviour
 {
+    public int fontSize = 16;
+    public float height = 200;
+    public ConsoleTextColor defaultTextColor = ConsoleTextColor.White;
+    public ConsoleTextColor inputSuggestionTextColor = ConsoleTextColor.Grey;
+    public ConsoleTextColor outputExplanationTextColor = ConsoleTextColor.Grey;
+    public ConsoleTextColor outputWarningTextColor = ConsoleTextColor.Yellow;
+    public ConsoleTextColor outputErrorTextColor = ConsoleTextColor.Red;
+    public ConsoleTextColor outputBoxBackgroundColor = ConsoleTextColor.Black;
+    public float outputBoxBackgroundColorAlpha = 0.5f;
+    public ConsoleTextColor inputBoxBackgroundColor = ConsoleTextColor.Black;
+    public float inputBoxBackgroundColorAlpha = 0.6f;
+
     public static KeyCode ActivateKey = KeyCode.Escape;
-    
+
     private static readonly List<object> commands = new List<object>();
     private static readonly List<GameConsoleOutput> outputs = new List<GameConsoleOutput>();
+    private static readonly List<string> inputs = new List<string>();
+
+    GUIStyle outputBoxStyle, inputBoxStyle, outputLabelStyle, inputTextFieldStyle;
+
+    private string input = string.Empty;
+    private readonly float canScrollSuggestionsAfterTime = 0.2f;
 
     private bool activated;
-    private string input;
-
     private bool canDeactivate;
 
     private void Awake()
     {
+        Color _outputBoxBackgroundColor = Helpers.GetConsoleTextColor(outputBoxBackgroundColor);
+        Color _inputBoxBackgroundColor = Helpers.GetConsoleTextColor(inputBoxBackgroundColor);
+
+        outputBoxStyle = new GUIStyle()
+        {
+            normal = new GUIStyleState()
+            {
+                background = Helpers.MakeTexture(1, 1, new Color(_outputBoxBackgroundColor.r, _outputBoxBackgroundColor.g, _outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha))
+            }
+        };
+
+        inputBoxStyle = new GUIStyle()
+        {
+            normal = new GUIStyleState()
+            {
+                background = Helpers.MakeTexture(1, 1, new Color(_inputBoxBackgroundColor.r, _inputBoxBackgroundColor.g, _inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha))
+            }
+        };
+
+        outputLabelStyle = new GUIStyle()
+        {
+            fontSize = fontSize,
+            richText = true,
+            normal = new GUIStyleState()
+            {
+                textColor = Helpers.GetConsoleTextColor(defaultTextColor)
+            }
+        };
+
+        inputTextFieldStyle = new GUIStyle()
+        {
+            fontSize = fontSize,
+            richText = true,
+            normal = new GUIStyleState()
+            {
+                textColor = Helpers.GetConsoleTextColor(defaultTextColor)
+            }
+        };
+
+        // Add commands here
         commands.AddRange(new List<object>()
         {
             new GameConsoleCommand("help", "Show all available commands", "help", () =>
@@ -28,27 +84,24 @@ public class GameConsole : MonoBehaviour
                     outputs.Add(new GameConsoleOutput($"{consoleCommand.CommandFormat} — {consoleCommand.CommandDescription}", ConsoleOutputType.Explanation));
                 }
             }),
-            new GameConsoleCommand<int>("test", "test", "test <int>", (value) =>
-            {
-                Debug.Log("I will be a cool method someday!");
-            }),
             new GameConsoleCommand("clear", "Clear the console", "clear", () =>
             {
                 Clear();
             }),
-            new GameConsoleCommand("d2", "d2", "d2", () =>
+            new GameConsoleCommand<string>("print", "Print text to the console", "print <string>", (value) =>
             {
-                Debug.Log("d2");
+                Print(value, ConsoleOutputType.Explanation);
             }),
-            new GameConsoleCommand("d3", "d3", "d3", () =>
+            new GameConsoleCommand<int>("cool_method", "Method, that will be cool someday", "cool_method <int>", (value) =>
             {
-                Debug.Log("d3");
+                Print("Cool method: I will be a cool method someday!", ConsoleOutputType.Explanation);
             }),
-            new GameConsoleCommand("d4", "d4", "d4", () =>
+            new GameConsoleCommand<int>("clear_something", "Method, that clears something... or does it?", "clear_something", (value) =>
             {
-                Debug.Log("d4");
-            })
+                Print("Clear something: Tried to clear something... but I can't do that, I'm just a test method!", ConsoleOutputType.Explanation);
+            }),
         });
+        // -----
     }
 
     private void Update()
@@ -74,7 +127,7 @@ public class GameConsole : MonoBehaviour
         }
 
         HandleOutputField(0, ref viewRect, ref scrollPosition);
-        HandleInputField(100, ref input);
+        HandleInputField(height, ref input);
 
         switch (Event.current.keyCode)
         {
@@ -96,13 +149,15 @@ public class GameConsole : MonoBehaviour
         }
     }
 
-    int previousOutputCount;
+    readonly int outputLabelHeight = 20;
+    readonly int outputLabelMarginBottom = 2;
+    int previousOutputCount = -1;
 
     private void HandleOutputField(float outputPositionY, ref Rect viewRect, ref Vector2 scrollPosition)
     {
-        viewRect = new Rect(0, 0, Screen.width - 30, 20 * outputs.Count);
+        viewRect = new Rect(0, 0, Screen.width - 30, (outputLabelHeight + outputLabelMarginBottom) * outputs.Count);
 
-        GUI.Box(new Rect(0, outputPositionY, Screen.width, 100), string.Empty);
+        GUI.Box(new Rect(0, outputPositionY, Screen.width, height), string.Empty, outputBoxStyle);
 
         if (previousOutputCount != outputs.Count)
         {
@@ -110,41 +165,195 @@ public class GameConsole : MonoBehaviour
             previousOutputCount = outputs.Count;
         }
         
-        scrollPosition = GUI.BeginScrollView(new Rect(0, outputPositionY + 5f, Screen.width, 90), scrollPosition, viewRect);
+        scrollPosition = GUI.BeginScrollView(new Rect(0, outputPositionY + 5f, Screen.width, height - 10), scrollPosition, viewRect);
 
         foreach (GameConsoleOutput output in outputs)
         {
+            string newOutputText = string.Empty;
+
             switch (output.OutputType)
             {
-                case ConsoleOutputType.Information:
-                    GUI.color = Color.white;
-                    break;
                 case ConsoleOutputType.Explanation:
-                    GUI.color = Helpers.GetCustomColor(CustomColor.LightGray);
+                    newOutputText = $"<color={outputExplanationTextColor.ToString().ToLower()}>{output.Text.RemoveTags("color")}</color>";
                     break;
                 case ConsoleOutputType.Warning:
-                    GUI.color = Color.yellow;
+                    newOutputText = $"<color={outputWarningTextColor.ToString().ToLower()}>{output.Text.RemoveTags("color")}</color>";
                     break;
                 case ConsoleOutputType.Error:
-                    GUI.color = Color.red;
+                    newOutputText = $"<color={outputErrorTextColor.ToString().ToLower()}>{output.Text.RemoveTags("color")}</color>";
+                    break;
+                case ConsoleOutputType.Custom:
+                    newOutputText = $"{output.Text}";
+                    break;
+                default:
+                    newOutputText = $"<color={defaultTextColor.ToString().ToLower()}>{output.Text.RemoveTags("color")}</color>";
                     break;
             }
-            GUI.Label(new Rect(0, outputPositionY, Screen.width, 20), $"{output.Text}");
-            GUI.color = Color.white;
+            GUI.Label(new Rect(10, outputPositionY, Screen.width, (outputLabelHeight + outputLabelMarginBottom)), $"{newOutputText}", outputLabelStyle);
 
-            outputPositionY += 20;
+            outputPositionY += (outputLabelHeight + outputLabelMarginBottom);
         }
 
         GUI.EndScrollView();
     }
 
+    int currentSuggestionIndex = 0;
+    int currentInputHistoryIndex = inputs.Count + 1;
+    bool canScrollSuggestions = true;
+    bool showInputHistorySuggestion = false;
+    readonly int inputTextFieldHeight = 20;
+
     private void HandleInputField(float inputPositionY, ref string input)
     {
-        GUI.Box(new Rect(0, inputPositionY, Screen.width, 30), string.Empty);
+        GUI.Box(new Rect(0, inputPositionY, Screen.width, inputTextFieldHeight + 10), string.Empty, inputBoxStyle);
         GUI.backgroundColor = new Color(0, 0, 0, 0);
-        GUI.SetNextControlName("InputField");
-        input = GUI.TextField(new Rect(10, inputPositionY + 5, Screen.width - 20, 20), input);
-        GUI.FocusControl("InputField");
+
+        int textFieldControlId = GUIUtility.keyboardControl;
+        string inputReflection = input;
+        string inputSuggestion = string.Empty;
+
+        TextEditor textEditor = (TextEditor)GUIUtility.GetStateObject(typeof(TextEditor), textFieldControlId);
+
+        if (textEditor.GetCaretIndex() > input.Length)
+        {
+            textEditor.SetCaretIndex(input.Length);
+        }
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            currentSuggestionIndex = 0;
+
+            if (showInputHistorySuggestion)
+            {
+                inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex);
+            }
+
+            if (Event.current.isKey)
+            {
+                switch (Event.current.keyCode)
+                {
+                    case KeyCode.Tab:
+                        if (inputs.Count > 0)
+                        {
+                            // Apply input suggestion
+
+                            input = inputs.GetClosestAt(ref currentInputHistoryIndex);
+                            textEditor.SetCaretIndex(input.Length);
+                            currentInputHistoryIndex = inputs.Count + 1;
+                            inputSuggestion = string.Empty;
+                            showInputHistorySuggestion = false;
+                        }
+                        break;
+                    case KeyCode.UpArrow:
+                        if (inputs.Count > 0 && canScrollSuggestions)
+                        {
+                            // Suggest previous input in history
+
+                            currentInputHistoryIndex--;
+                            inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex);
+                            showInputHistorySuggestion = true;
+                            StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+                        }
+                        Event.current.keyCode = KeyCode.None;
+                        break;
+                    case KeyCode.DownArrow:
+                        if (inputs.Count > 0 && canScrollSuggestions)
+                        {
+                            // Suggest next input in history
+
+                            currentInputHistoryIndex++;
+                            inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex);
+                            showInputHistorySuggestion = true;
+                            StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+                        }
+                        Event.current.keyCode = KeyCode.None;
+                        break;
+                }
+            }
+
+            goto RenderTextField;
+        }
+        else
+        {
+            currentInputHistoryIndex = inputs.Count + 1;
+            showInputHistorySuggestion = false;
+        }
+        
+        GetInputSuggestions(input, out HashSet<string> inputSuggestions);
+
+        if (!inputSuggestions.Any(s => s == inputReflection))
+        {
+            string currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+
+            if (Event.current.isKey)
+            {
+                switch (Event.current.keyCode)
+                {
+                    case KeyCode.Tab:
+                        if (inputSuggestions.Count > 0)
+                        {
+                            // Apply suggestion
+                            
+                            input = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+                            textEditor.SetCaretIndex(input.Length);
+                            currentSuggestionIndex = 0;
+                            currentSuggestion = string.Empty;
+                        }
+                        break;
+                    case KeyCode.UpArrow:
+                        if (inputSuggestions.Count > 0 && canScrollSuggestions)
+                        {
+                            // Show previous suggestion
+                            
+                            currentSuggestionIndex--;
+                            currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+                            StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+                        }
+                        Event.current.keyCode = KeyCode.None;
+                        break;
+                    case KeyCode.DownArrow:
+                        if (inputSuggestions.Count > 0 && canScrollSuggestions)
+                        {
+                            // Show next suggestion
+
+                            currentSuggestionIndex++;
+                            currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+                            StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+                        }
+                        Event.current.keyCode = KeyCode.None;
+                        break;
+                }
+            }
+
+            inputSuggestion = !string.IsNullOrEmpty(currentSuggestion) ? currentSuggestion.RemovePartFromStart(input) : string.Empty;
+        }
+
+        RenderTextField:
+        {
+            GUI.SetNextControlName("InputField");
+
+            string _input = GUI.TextField(new Rect(10, inputPositionY + 5, Screen.width - 20, inputTextFieldHeight),
+                $"{input}{(!string.IsNullOrEmpty(inputSuggestion) ? $"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>" : string.Empty)}",
+                inputTextFieldStyle);
+            input = !string.IsNullOrEmpty(inputSuggestion) ? _input.Replace($"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>", string.Empty) : _input;
+
+            GUI.FocusControl("InputField");
+        }
+    }
+
+    private void GetInputSuggestions(string input, out HashSet<string> inputSuggestions)
+    {
+        inputSuggestions = new HashSet<string>();
+        
+        try
+        {
+            List<string> _inputSuggestions = commands.Cast<GameConsoleCommandBase>().ToList()
+                .Where(c => c.CommandFormat.ToLower().StartsWith(input)).Select(c => c.CommandFormat).ToList();
+            inputSuggestions = new HashSet<string>(_inputSuggestions);
+        }
+        catch
+        {
+        }
     }
 
     /// <summary>
@@ -153,7 +362,10 @@ public class GameConsole : MonoBehaviour
     /// <returns>True, if the input didn't contain any errors.</returns>
     private bool HandleInput(string input)
     {
-        string[] inputParts = input.Split(' ');
+        inputs.Add(input);
+        outputs.Add(new GameConsoleOutput($"> {input}", ConsoleOutputType.Information));
+
+        string[] inputParts = input.SplitAllNonWrapped(' ', '"');
 
         int previousOutputsCount = outputs.Count;
 
@@ -168,11 +380,10 @@ public class GameConsole : MonoBehaviour
                     switch (inputParts.Length)
                     {
                         case 1:
-                            outputs.Add(new GameConsoleOutput($"{string.Join(" ", inputParts)}", ConsoleOutputType.Information));
                             commandDefault.Invoke();
                             return true;
                         default:
-                            outputs.Add(new GameConsoleOutput($"Wrong usage of the command '{consoleCommandBase.CommandId}', the right usage is: '{consoleCommandBase.CommandFormat}'", ConsoleOutputType.Error));
+                            outputs.Add(new GameConsoleOutput($"Wrong usage of the command \"{consoleCommandBase.CommandId}\", the right usage is: \"{consoleCommandBase.CommandFormat}\"", ConsoleOutputType.Error));
                             return false;
                     }
                 }
@@ -183,17 +394,36 @@ public class GameConsole : MonoBehaviour
                         case 2:
                             try
                             {
-                                outputs.Add(new GameConsoleOutput($"{string.Join(" ", inputParts)}", ConsoleOutputType.Information));
                                 commandInt.Invoke(int.Parse(inputParts[1]));
                                 return true;
                             }
                             catch (FormatException)
                             {
-                                outputs.Add(new GameConsoleOutput($"Wrong usage of the command '{consoleCommandBase.CommandId}', the right usage is: '{consoleCommandBase.CommandFormat}'", ConsoleOutputType.Error));
+                                outputs.Add(new GameConsoleOutput($"Wrong usage of the command \"{consoleCommandBase.CommandId}\", the right usage is: \"{consoleCommandBase.CommandFormat}\"", ConsoleOutputType.Error));
                                 return false;
                             }
                         default:
-                            outputs.Add(new GameConsoleOutput($"Wrong usage of the command '{consoleCommandBase.CommandId}', the right usage is: '{consoleCommandBase.CommandFormat}'", ConsoleOutputType.Error));
+                            outputs.Add(new GameConsoleOutput($"Wrong usage of the command \"{consoleCommandBase.CommandId}\", the right usage is: \"{consoleCommandBase.CommandFormat}\"", ConsoleOutputType.Error));
+                            return false;
+                    }
+                }
+                else if (command is GameConsoleCommand<string> commandString)
+                {
+                    switch (inputParts.Length)
+                    {
+                        case 2:
+                            try
+                            {
+                                commandString.Invoke(inputParts[1]);
+                                return true;
+                            }
+                            catch (FormatException)
+                            {
+                                outputs.Add(new GameConsoleOutput($"Wrong usage of the command \"{consoleCommandBase.CommandId}\", the right usage is: \"{consoleCommandBase.CommandFormat}\"", ConsoleOutputType.Error));
+                                return false;
+                            }
+                        default:
+                            outputs.Add(new GameConsoleOutput($"Wrong usage of the command \"{consoleCommandBase.CommandId}\", the right usage is: \"{consoleCommandBase.CommandFormat}\"", ConsoleOutputType.Error));
                             return false;
                     }
                 }
@@ -204,10 +434,19 @@ public class GameConsole : MonoBehaviour
 
         if (previousOutputsCount == outputs.Count)
         {
-            outputs.Add(new GameConsoleOutput($"Unknown command '{string.Join(" ", inputParts)}'", ConsoleOutputType.Error));
+            outputs.Add(new GameConsoleOutput($"Unknown command \"{string.Join(" ", inputParts)}\"", ConsoleOutputType.Error));
         }
 
         return false;
+    }
+
+    private IEnumerator CanScrollSuggestionsAfter(float seconds)
+    {
+        canScrollSuggestions = false;
+
+        yield return new WaitForSeconds(seconds);
+
+        canScrollSuggestions = true;
     }
 
     private IEnumerator CanDeactivateAfter(float seconds)
@@ -218,10 +457,10 @@ public class GameConsole : MonoBehaviour
     }
 
     /// <summary>
-    /// Get the commands mirrored.
+    /// Get the commands reflected.
     /// </summary>
-    /// <returns>An array of the mirrored commands.</returns>
-    public static GameConsoleCommandBase[] GetMirroredCommands()
+    /// <returns>An array of the reflected commands.</returns>
+    public static GameConsoleCommandBase[] GetReflectedCommands()
     {
         List<GameConsoleCommandBase> newCommands = new List<GameConsoleCommandBase>();
 
@@ -234,10 +473,10 @@ public class GameConsole : MonoBehaviour
     }
 
     /// <summary>
-    /// Get the outputs mirrored.
+    /// Get the outputs reflected.
     /// </summary>
-    /// <returns>An array of the mirrored outputs.</returns>
-    public static GameConsoleOutput[] GetMirroredOutputs()
+    /// <returns>An array of the reflected outputs.</returns>
+    public static GameConsoleOutput[] GetReflectedOutputs()
     {
         List<GameConsoleOutput> newOutputs = new List<GameConsoleOutput>();
 
@@ -252,7 +491,7 @@ public class GameConsole : MonoBehaviour
     /// <summary>
     /// Print text to the console.
     /// </summary>
-    public static void Put(string text, ConsoleOutputType outputType = ConsoleOutputType.Information)
+    public static void Print(string text, ConsoleOutputType outputType = ConsoleOutputType.Information)
     {
         outputs.Add(new GameConsoleOutput(text, outputType));
     }
