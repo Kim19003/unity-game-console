@@ -2,8 +2,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor.UI;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Color = UnityEngine.Color;
+using TextEditor = UnityEngine.TextEditor;
 
 public class GameConsole : MonoBehaviour
 {
@@ -27,14 +30,31 @@ public class GameConsole : MonoBehaviour
 
     GUIStyle outputBoxStyle, inputBoxStyle, outputLabelStyle, inputTextFieldStyle;
 
+    GameConsoleCommand help;
+    GameConsoleCommand<string> help_of;
+    GameConsoleCommand clear;
+    GameConsoleCommand<string> print;
+    GameConsoleCommand quit;
+    GameConsoleCommand<string> load_scene;
+    GameConsoleCommand restart;
+    GameConsoleCommand fullscreen;
+    GameConsoleCommand<string> destroy;
+    GameConsoleCommand<string, string> set_active;
+    GameConsoleCommand<string, string> get_attribute_of;
+    GameConsoleCommand<string, string, string> set_attribute_of;
+    GameConsoleCommand get_admitted_attribute_names;
+    GameConsoleCommand get_command_ids;
+
     private string input = string.Empty;
     private readonly float canScrollSuggestionsAfterTime = 0.2f;
+    private readonly float canCompleteSuggestionAfterTime = 0.2f;
 
     private bool activated;
     private bool canDeactivate;
 
     private void Awake()
     {
+        #region Initializing
         Color _outputBoxBackgroundColor = Helpers.GetConsoleTextColor(outputBoxBackgroundColor);
         Color _inputBoxBackgroundColor = Helpers.GetConsoleTextColor(inputBoxBackgroundColor);
 
@@ -74,34 +94,241 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        // Add commands here
+        inputs.Add(string.Empty);
+        #endregion
+
+        #region Commands
+        help = new GameConsoleCommand(
+            $"{nameof(help)}",
+            "Show information about all available commands",
+            $"{nameof(help)}",
+            $"{nameof(help)}");
+        help.Action = () =>
+        {
+            foreach (GameConsoleCommandBase consoleCommand in commands.Cast<GameConsoleCommandBase>())
+            {
+                string commandFormat = consoleCommand.CommandFormat.WrapAlreadyWrappedPartsWithTags("i", '<', '>');
+                string commandExample = string.Empty; //consoleCommand.CommandExample
+                //if (!string.IsNullOrEmpty(commandExample))
+                //{
+                //    commandExample = $"[example: {commandExample}]";
+                //}
+                Print($"{commandFormat} — {consoleCommand.CommandDescription}{(!string.IsNullOrEmpty(commandExample) ? " " + commandExample : string.Empty)}", ConsoleOutputType.Explanation);
+            }
+        };
+
+        help_of = new GameConsoleCommand<string>(
+            $"{nameof(help_of)}",
+            "Show information about a command",
+            $"{nameof(help_of)} <string: commandId>",
+            $"{nameof(help_of)} \"{nameof(help)}\"");
+        help_of.Action = (commandId) =>
+        {
+            GameConsoleCommandBase command = commands.Cast<GameConsoleCommandBase>().FirstOrDefault(c => c.CommandId == commandId);
+            
+            if (command != null)
+            {
+                Print($"Id: {command.CommandId}", ConsoleOutputType.Explanation);
+                Print($"Description: {command.CommandDescription}", ConsoleOutputType.Explanation);
+                Print($"Format: {command.CommandFormat.WrapAlreadyWrappedPartsWithTags("i", '<', '>')}", ConsoleOutputType.Explanation);
+                Print($"Usage example: {command.CommandExample}", ConsoleOutputType.Explanation);
+            }
+            else
+            {
+                PrintWrongUsageOfCommandError(help_of.CommandId);
+            }
+        };
+
+        clear = new GameConsoleCommand(
+            $"{nameof(clear)}",
+            "Clear the console",
+            $"{nameof(clear)}",
+            $"{nameof(clear)}");
+        clear.Action = () =>
+        {
+            Clear();
+        };
+
+        print = new GameConsoleCommand<string>(
+            $"{nameof(print)}",
+            "Print text to the console",
+            $"{nameof(print)} <string: text>",
+            $"{nameof(print)} \"Hello world!\"");
+        print.Action = (text) =>
+        {
+            Print(text, ConsoleOutputType.Explanation);
+        };
+
+        quit = new GameConsoleCommand(
+            $"{nameof(quit)}",
+            "Quit the game",
+            $"{nameof(quit)}",
+            $"{nameof(quit)}");
+        quit.Action = () =>
+        {
+            Application.Quit();
+        };
+
+        load_scene = new GameConsoleCommand<string>(
+            $"{nameof(load_scene)}",
+            "Load specific scene",
+            $"{nameof(load_scene)} <string: sceneName>",
+            $"{nameof(load_scene)} \"SampleScene\"");
+        load_scene.Action = (sceneName) =>
+        {
+            SceneManager.LoadScene(sceneName);
+        };
+
+        restart = new GameConsoleCommand(
+            $"{nameof(restart)}",
+            "Restart current scene",
+            $"{nameof(restart)}",
+            $"{nameof(restart)}");
+        restart.Action = () =>
+        {
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        };
+
+        fullscreen = new GameConsoleCommand(
+            $"{nameof(fullscreen)}",
+            "Switch to the fullscreen",
+            $"{nameof(fullscreen)}",
+            $"{nameof(fullscreen)}");
+        fullscreen.Action = () =>
+        {
+            Print($"Fullscreen: {!Screen.fullScreen}", ConsoleOutputType.Explanation);
+            Screen.fullScreen = !Screen.fullScreen;
+        };
+
+        destroy = new GameConsoleCommand<string>(
+            $"{nameof(destroy)}",
+            "Destroy specific game object",
+            $"{nameof(destroy)} <string: gameObjectName>",
+            $"{nameof(destroy)} \"Player\"");
+        destroy.Action = (gameObjectName) =>
+        {
+            GameObject gameObject = GameObject.Find(gameObjectName);
+
+            if (gameObject != null)
+            {
+                Destroy(gameObject);
+            }
+            else
+            {
+                PrintWrongUsageOfCommandError(destroy.CommandId);
+            }
+        };
+
+        set_active = new GameConsoleCommand<string, string>(
+            $"{nameof(set_active)}",
+            "Activate or deactivate specific game object",
+            $"{nameof(set_active)} <string: gameObjectName> <bool: isTrue>",
+            $"{nameof(set_active)} \"Player\" false");
+        set_active.Action = (gameObjectName, isTrue) =>
+        {
+            try
+            {
+                GameObject gameObject = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(go => go.name == gameObjectName);
+
+                bool value = Convert.ToBool(isTrue);
+
+                if (gameObject != null)
+                {
+                    gameObject.SetActive(value);
+                }
+                else
+                {
+                    throw new Exception();
+                }
+            }
+            catch
+            {
+                PrintWrongUsageOfCommandError(set_active.CommandId);
+            }
+        };
+
+        get_attribute_of = new GameConsoleCommand<string, string>(
+            $"{nameof(get_attribute_of)}",
+            "Find a game object by name and get it's attribute value",
+            $"{nameof(get_attribute_of)} <string: gameObjectName> <string: gameObjectAttributeName>",
+            $"{nameof(get_attribute_of)} \"Player\" \"position\"");
+        get_attribute_of.Action = (gameObjectName, attributeName) =>
+        {
+            try
+            {
+                GameObject gameObject = GameObject.Find(gameObjectName);
+                string attributeValue = gameObject.GetAttributeValue(attributeName);
+                Print($"{gameObject.transform.name}'s {attributeName} is {attributeValue}", ConsoleOutputType.Explanation);
+            }
+            catch
+            {
+                PrintWrongUsageOfCommandError(get_attribute_of.CommandId);
+            }
+        };
+
+        set_attribute_of = new GameConsoleCommand<string, string, string>(
+            $"{nameof(set_attribute_of)}",
+            "Find a game object by name and set it's attribute value",
+            $"{nameof(set_attribute_of)} <string: gameObjectName> <string: gameObjectAttributeName> \"<object: gameObjectAttributeValue>\"",
+            $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1.0, 1.0)\"");
+        set_attribute_of.Action = (gameObjectName, attributeName, attributeValue) =>
+        {
+            try
+            {
+                GameObject gameObject = GameObject.Find(gameObjectName);
+                gameObject.SetAttributeValue(attributeName, attributeValue);
+                Print($"{gameObject.transform.name}'s {attributeName} is now {gameObject.GetAttributeValue(attributeName)}", ConsoleOutputType.Explanation);
+            }
+            catch
+            {
+                PrintWrongUsageOfCommandError(set_attribute_of.CommandId);
+            }
+        };
+
+        get_admitted_attribute_names = new GameConsoleCommand(
+            $"{nameof(get_admitted_attribute_names)}",
+            "Get the game object's admitted attribute names",
+            $"{nameof(get_admitted_attribute_names)}",
+            $"{nameof(get_admitted_attribute_names)}");
+        get_admitted_attribute_names.Action = () =>
+        {
+            foreach (string attributeName in GameObjectExtensions.AttributeNames)
+            {
+                Print($"{attributeName}", ConsoleOutputType.Explanation);
+            }
+        };
+
+        get_command_ids = new GameConsoleCommand(
+            $"{nameof(get_command_ids)}",
+            "Get all command ids",
+            $"{nameof(get_command_ids)}",
+            $"{nameof(get_command_ids)}");
+        get_command_ids.Action = () =>
+        {
+            foreach (GameConsoleCommandBase command in commands.Cast<GameConsoleCommandBase>().ToList())
+            {
+                Print($"{command.CommandId}", ConsoleOutputType.Explanation);
+            }
+        };
+
         commands.AddRange(new List<object>()
         {
-            new GameConsoleCommand("help", "Show all available commands", "help", () =>
-            {
-                foreach (GameConsoleCommandBase consoleCommand in commands.Cast<GameConsoleCommandBase>())
-                {
-                    outputs.Add(new GameConsoleOutput($"{consoleCommand.CommandFormat} — {consoleCommand.CommandDescription}", ConsoleOutputType.Explanation));
-                }
-            }),
-            new GameConsoleCommand("clear", "Clear the console", "clear", () =>
-            {
-                Clear();
-            }),
-            new GameConsoleCommand<string>("print", "Print text to the console", "print <string>", (value) =>
-            {
-                Print(value, ConsoleOutputType.Explanation);
-            }),
-            new GameConsoleCommand<int>("cool_method", "Method, that will be cool someday", "cool_method <int>", (value) =>
-            {
-                Print("Cool method: I will be a cool method someday!", ConsoleOutputType.Explanation);
-            }),
-            new GameConsoleCommand<int>("clear_something", "Method, that clears something... or does it?", "clear_something", (value) =>
-            {
-                Print("Clear something: Tried to clear something... but I can't do that, I'm just a test method!", ConsoleOutputType.Explanation);
-            }),
+            help,
+            help_of,
+            clear,
+            print,
+            quit,
+            load_scene,
+            restart,
+            fullscreen,
+            destroy,
+            set_active,
+            get_attribute_of,
+            set_attribute_of,
+            get_admitted_attribute_names,
+            get_command_ids,
         });
-        // -----
+        #endregion
     }
 
     private void Update()
@@ -200,6 +427,7 @@ public class GameConsole : MonoBehaviour
     int currentSuggestionIndex = 0;
     int currentInputHistoryIndex = inputs.Count + 1;
     bool canScrollSuggestions = true;
+    bool canCompleteSuggestion = true;
     bool showInputHistorySuggestion = false;
     readonly int inputTextFieldHeight = 20;
 
@@ -293,8 +521,18 @@ public class GameConsole : MonoBehaviour
                         if (inputSuggestions.Count > 0)
                         {
                             // Apply suggestion
-                            
-                            input = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+
+                            string fullSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+                            string firstPartOfSuggestion = fullSuggestion.GetFirstWord();
+                            if (canCompleteSuggestion && input.ToLower() == firstPartOfSuggestion.ToLower())
+                            {
+                                input = fullSuggestion;
+                            }
+                            else
+                            {
+                                input = firstPartOfSuggestion;
+                                StartCoroutine(CanCompleteSuggestionAfter(canCompleteSuggestionAfterTime));
+                            }
                             textEditor.SetCaretIndex(input.Length);
                             currentSuggestionIndex = 0;
                             currentSuggestion = string.Empty;
@@ -304,7 +542,7 @@ public class GameConsole : MonoBehaviour
                         if (inputSuggestions.Count > 0 && canScrollSuggestions)
                         {
                             // Show previous suggestion
-                            
+
                             currentSuggestionIndex--;
                             currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
                             StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
@@ -348,7 +586,7 @@ public class GameConsole : MonoBehaviour
         try
         {
             List<string> _inputSuggestions = commands.Cast<GameConsoleCommandBase>().ToList()
-                .Where(c => c.CommandFormat.ToLower().StartsWith(input)).Select(c => c.CommandFormat).ToList();
+                .Where(c => c.CommandFormat.ToLower().StartsWith(input.ToLower())).Select(c => c.CommandFormat).ToList();
             inputSuggestions = new HashSet<string>(_inputSuggestions);
         }
         catch
@@ -363,7 +601,7 @@ public class GameConsole : MonoBehaviour
     private bool HandleInput(string input)
     {
         inputs.Add(input);
-        outputs.Add(new GameConsoleOutput($"> {input}", ConsoleOutputType.Information));
+        Print($"> {input}", ConsoleOutputType.Information);
 
         string[] inputParts = input.SplitAllNonWrapped(' ', '"');
 
@@ -383,27 +621,7 @@ public class GameConsole : MonoBehaviour
                             commandDefault.Invoke();
                             return true;
                         default:
-                            outputs.Add(new GameConsoleOutput($"Wrong usage of the command \"{consoleCommandBase.CommandId}\", the right usage is: \"{consoleCommandBase.CommandFormat}\"", ConsoleOutputType.Error));
-                            return false;
-                    }
-                }
-                else if (command is GameConsoleCommand<int> commandInt)
-                {
-                    switch (inputParts.Length)
-                    {
-                        case 2:
-                            try
-                            {
-                                commandInt.Invoke(int.Parse(inputParts[1]));
-                                return true;
-                            }
-                            catch (FormatException)
-                            {
-                                outputs.Add(new GameConsoleOutput($"Wrong usage of the command \"{consoleCommandBase.CommandId}\", the right usage is: \"{consoleCommandBase.CommandFormat}\"", ConsoleOutputType.Error));
-                                return false;
-                            }
-                        default:
-                            outputs.Add(new GameConsoleOutput($"Wrong usage of the command \"{consoleCommandBase.CommandId}\", the right usage is: \"{consoleCommandBase.CommandFormat}\"", ConsoleOutputType.Error));
+                            PrintWrongUsageOfCommandError(consoleCommandBase.CommandId);
                             return false;
                     }
                 }
@@ -412,18 +630,34 @@ public class GameConsole : MonoBehaviour
                     switch (inputParts.Length)
                     {
                         case 2:
-                            try
-                            {
-                                commandString.Invoke(inputParts[1]);
-                                return true;
-                            }
-                            catch (FormatException)
-                            {
-                                outputs.Add(new GameConsoleOutput($"Wrong usage of the command \"{consoleCommandBase.CommandId}\", the right usage is: \"{consoleCommandBase.CommandFormat}\"", ConsoleOutputType.Error));
-                                return false;
-                            }
+                            commandString.Invoke(inputParts[1]);
+                            return true;
                         default:
-                            outputs.Add(new GameConsoleOutput($"Wrong usage of the command \"{consoleCommandBase.CommandId}\", the right usage is: \"{consoleCommandBase.CommandFormat}\"", ConsoleOutputType.Error));
+                            PrintWrongUsageOfCommandError(consoleCommandBase.CommandId);
+                            return false;
+                    }
+                }
+                else if (command is GameConsoleCommand<string, string> commandStringString)
+                {
+                    switch (inputParts.Length)
+                    {
+                        case 3:
+                            commandStringString.Invoke(inputParts[1], inputParts[2]);
+                            return true;
+                        default:
+                            PrintWrongUsageOfCommandError(consoleCommandBase.CommandId);
+                            return false;
+                    }
+                }
+                else if (command is GameConsoleCommand<string, string, string> commandStringStringString)
+                {
+                    switch (inputParts.Length)
+                    {
+                        case 4:
+                            commandStringStringString.Invoke(inputParts[1], inputParts[2], inputParts[3]);
+                            return true;
+                        default:
+                            PrintWrongUsageOfCommandError(consoleCommandBase.CommandId);
                             return false;
                     }
                 }
@@ -434,12 +668,20 @@ public class GameConsole : MonoBehaviour
 
         if (previousOutputsCount == outputs.Count)
         {
-            outputs.Add(new GameConsoleOutput($"Unknown command \"{string.Join(" ", inputParts)}\"", ConsoleOutputType.Error));
+            Print($"Unknown command \"{string.Join(" ", inputParts)}\"", ConsoleOutputType.Error);
         }
 
         return false;
     }
 
+    private static void PrintWrongUsageOfCommandError(string commandId)
+    {
+        Print($"Incorrect usage of the command \"{commandId}\". Use \"help_of {commandId}\" to get more information about the command.", ConsoleOutputType.Error);
+    }
+
+    /// <summary>
+    /// Used to set small delay to suggestion scrolling (since OnGui() is called many times per frame)
+    /// </summary>
     private IEnumerator CanScrollSuggestionsAfter(float seconds)
     {
         canScrollSuggestions = false;
@@ -449,6 +691,21 @@ public class GameConsole : MonoBehaviour
         canScrollSuggestions = true;
     }
 
+    /// <summary>
+    /// Used to set small delay to suggestion completion (since OnGui() is called many times per frame)
+    /// </summary>
+    private IEnumerator CanCompleteSuggestionAfter(float seconds)
+    {
+        canCompleteSuggestion = false;
+
+        yield return new WaitForSeconds(seconds);
+
+        canCompleteSuggestion = true;
+    }
+
+    /// <summary>
+    /// Used to set small delay to allowing user close the opened console (since OnGui() is called many times per frame)
+    /// </summary>
     private IEnumerator CanDeactivateAfter(float seconds)
     {
         yield return new WaitForSeconds(seconds);
