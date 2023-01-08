@@ -2,9 +2,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor.UI;
 using UnityEditor.VersionControl;
 using UnityEditorInternal;
 using UnityEngine;
+using TextEditor = UnityEngine.TextEditor;
 
 public enum ConsoleTextColor
 {
@@ -179,6 +181,145 @@ public class Convert
     }
 }
 
+public class TimedUnityAction
+{
+    public Action Action
+    {
+        get
+        {
+            return action;
+        }
+        set
+        {
+            if (value != null)
+            {
+                action = value;
+            }
+        }
+    }
+    Action action = null;
+
+    public float Interval
+    {
+        get
+        {
+            return interval;
+        }
+        private set
+        {
+            if (value > 0)
+            {
+                interval = value;
+            }
+        }
+    }
+    private float interval = 0f;
+
+    float nextActionTime = 0f;
+
+    bool started = false;
+
+    public TimedUnityAction()
+    {
+
+    }
+
+    public TimedUnityAction(Action action, float interval)
+    {
+        if (action == null)
+        {
+            throw new ArgumentException("Action cannot be null.");
+        }
+        else if (interval <= 0)
+        {
+            throw new ArgumentException("Interval must be greater than 0.");
+        }
+
+        Action = action;
+        Interval = interval;
+    }
+
+    /// <summary>
+    /// Runs {Action} every {Interval} second. Call this in Unity's Update method.
+    /// </summary>
+    public void Run(float startDelay = 0f)
+    {
+        if (Action == null)
+        {
+            throw new ArgumentException("Action cannot be null.");
+        }
+        else if (Interval <= 0)
+        {
+            throw new ArgumentException("Interval must be greater than 0.");
+        }
+        else if (startDelay < 0)
+        {
+            throw new ArgumentException("Start delay must be greater than or equal to 0.");
+        }
+
+        if (Time.timeSinceLevelLoad > (startDelay > 0 && !started ? startDelay : nextActionTime))
+        {
+            Action();
+
+            nextActionTime += Interval;
+
+            started = true;
+        }
+    }
+
+    /// <summary>
+    /// Runs {action} every {interval} second. Call this in Unity's Update method.
+    /// </summary>
+    public void Run(Action action, float interval, float startDelay = 0f)
+    {
+        if (action == null)
+        {
+            throw new ArgumentException("Action cannot be null.");
+        }
+        else if (interval <= 0)
+        {
+            throw new ArgumentException("Interval must be greater than 0.");
+        }
+        else if (startDelay < 0)
+        {
+            throw new ArgumentException("Start delay must be greater than or equal to 0.");
+        }
+
+        if (Action == null)
+        {
+            Action = action;
+        }
+        else if (Action != action)
+        {
+            throw new ArgumentException("The action has already been initialized, and cannot be changed here. Use the SetAction method to change the action.");
+        }
+
+        if (Interval != interval)
+        {
+            Interval = interval;
+        }
+
+        if (Time.timeSinceLevelLoad > (startDelay > 0 && !started ? startDelay : nextActionTime))
+        {
+            Action();
+
+            nextActionTime += Interval;
+
+            started = true;
+        }
+    }
+
+    public void SetAction(Action action)
+    {
+        Action = action;
+    }
+
+    public void SetInterval(float interval)
+    {
+        Interval = interval;
+    }
+}
+
 public static class StringExtensions
 {
     public static bool ContainsAll(this string value, params string[] items)
@@ -204,6 +345,21 @@ public static class StringExtensions
         return false;
     }
 
+    public static int ContainsAmount(this string value, char item)
+    {
+        int times = 0;
+
+        foreach (char c in value)
+        {
+            if (c == item)
+            {
+                times++;
+            }
+        }
+
+        return times;
+    }
+
     public static string RemovePartFromStart(this string text, string part)
     {
         if (text.StartsWith(part))
@@ -214,9 +370,24 @@ public static class StringExtensions
         return text;
     }
 
-    public static string Get(this string text)
+    public static string RemovePartFromEnd(this string text, string part)
     {
+        if (text.EndsWith(part))
+        {
+            return text.Remove(text.Length - part.Length);
+        }
+
         return text;
+    }
+
+    public static char GetCharAt(this string text, int index)
+    {
+        if (index > -1 && index < text.Length)
+        {
+            return text[index];
+        }
+
+        return '\0';
     }
 
     public static string WrapWithTags(this string text, string tag, char tagStartChar = '<', char tagEndChar = '>', char tagClosingMarkerChar = '/')
@@ -254,6 +425,31 @@ public static class StringExtensions
         }
 
         return text;
+    }
+
+    public static string AddWrappersTo(this string text, int index, char wrapChar)
+    {
+        return text.Insert(index, $"{wrapChar}{wrapChar}");
+    }
+
+    public static string WrapWith(this string text, char wrapChar)
+    {
+        return $"{wrapChar}{text}{wrapChar}";
+    }
+
+    public static string WrapFirstFoundPart(this string text, string part, char wrapChar)
+    {
+        string newText = text;
+
+        if (newText.Contains(part))
+        {
+            int partIndex = newText.IndexOf(part);
+            newText = newText.Remove(partIndex, part.Length);
+            string partWrapped = part.WrapWith(wrapChar);
+            newText = newText.Insert(partIndex, partWrapped);
+        }
+
+        return newText;
     }
 
     public static string RemoveTags(this string text, string tag, char tagStartChar = '<', char tagEndChar = '>', char tagClosingMarkerChar = '/')
@@ -341,7 +537,7 @@ public static class HashSetExtensions
         }
     }
 
-    public static T GetClosestAt<T>(this HashSet<T> hashSet, ref int index)
+    public static T GetClosestAt<T>(this HashSet<T> hashSet, ref int index, bool returnDefaultIfOutOfBounds = false)
     {
         if (hashSet.Count == 0)
         {
@@ -350,10 +546,24 @@ public static class HashSetExtensions
 
         if (index < 0)
         {
+            if (returnDefaultIfOutOfBounds)
+            {
+                index = -1;
+
+                return default;
+            }
+
             index = 0;
         }
         else if (index >= hashSet.Count)
         {
+            if (returnDefaultIfOutOfBounds)
+            {
+                index = hashSet.Count;
+
+                return default;
+            }
+
             index = hashSet.Count - 1;
         }
 
@@ -374,7 +584,7 @@ public static class HashSetExtensions
 
 public static class ListExtensions
 {
-    public static T GetClosestAt<T>(this List<T> list, ref int index)
+    public static T GetClosestAt<T>(this List<T> list, ref int index, bool returnDefaultIfOutOfBounds = false)
     {
         if (list.Count == 0)
         {
@@ -383,10 +593,24 @@ public static class ListExtensions
 
         if (index < 0)
         {
+            if (returnDefaultIfOutOfBounds)
+            {
+                index = -1;
+
+                return default;
+            }
+
             index = 0;
         }
         else if (index >= list.Count)
         {
+            if (returnDefaultIfOutOfBounds)
+            {
+                index = list.Count;
+
+                return default;
+            }
+
             index = list.Count - 1;
         }
 
@@ -477,11 +701,11 @@ public static class GameObjectExtensions
             case "layer":
                 return gameObject.layer.ToString();
             case "position":
-                return gameObject.transform.position.ToString();
+                return gameObject.transform.position.ToString("F3");
             case "rotation":
-                return gameObject.transform.rotation.eulerAngles.ToString();
+                return gameObject.transform.rotation.eulerAngles.ToString("F3");
             case "scale":
-                return gameObject.transform.localScale.ToString();
+                return gameObject.transform.localScale.ToString("F3");
             case "activeInHierarchy":
                 return gameObject.activeInHierarchy.ToString();
             case "activeSelf":

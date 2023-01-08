@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using UnityEditor.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -10,23 +11,28 @@ using TextEditor = UnityEngine.TextEditor;
 
 public class GameConsole : MonoBehaviour
 {
-    public int fontSize = 16;
-    public float height = 200;
-    public ConsoleTextColor defaultTextColor = ConsoleTextColor.White;
-    public ConsoleTextColor inputSuggestionTextColor = ConsoleTextColor.Grey;
-    public ConsoleTextColor outputExplanationTextColor = ConsoleTextColor.Grey;
-    public ConsoleTextColor outputWarningTextColor = ConsoleTextColor.Yellow;
-    public ConsoleTextColor outputErrorTextColor = ConsoleTextColor.Red;
-    public ConsoleTextColor outputBoxBackgroundColor = ConsoleTextColor.Black;
-    public float outputBoxBackgroundColorAlpha = 0.5f;
-    public ConsoleTextColor inputBoxBackgroundColor = ConsoleTextColor.Black;
-    public float inputBoxBackgroundColorAlpha = 0.6f;
+    [SerializeField] private Font font;
+    [SerializeField] private KeyCode activateKey = KeyCode.Escape;
+    [SerializeField] private int fontSize = 16;
+    [SerializeField] private float height = 200;
+    [SerializeField] private ConsoleTextColor defaultTextColor = ConsoleTextColor.White;
+    [SerializeField] private ConsoleTextColor inputSuggestionTextColor = ConsoleTextColor.Grey;
+    [SerializeField] private ConsoleTextColor outputExplanationTextColor = ConsoleTextColor.Grey;
+    [SerializeField] private ConsoleTextColor outputWarningTextColor = ConsoleTextColor.Yellow;
+    [SerializeField] private ConsoleTextColor outputErrorTextColor = ConsoleTextColor.Red;
+    [SerializeField] private ConsoleTextColor outputBoxBackgroundColor = ConsoleTextColor.Black;
+    [SerializeField] private float outputBoxBackgroundColorAlpha = 0.5f;
+    [SerializeField] private ConsoleTextColor inputBoxBackgroundColor = ConsoleTextColor.Black;
+    [SerializeField] private float inputBoxBackgroundColorAlpha = 0.6f;
 
-    public static KeyCode ActivateKey = KeyCode.Escape;
+    private readonly float canRemoveWithBackspaceAfterTime = 0.2f;
+    private readonly float canScrollSuggestionsAfterTime = 0.2f;
+    private readonly float canCompleteSuggestionAfterTime = 0.2f;
+    private readonly float dontShowSuggestionsForTime = 0.2f;
 
-    private static readonly List<object> commands = new List<object>();
-    private static readonly List<GameConsoleOutput> outputs = new List<GameConsoleOutput>();
-    private static readonly List<string> inputs = new List<string>();
+    private readonly List<object> commands = new List<object>();
+    private readonly List<GameConsoleOutput> outputs = new List<GameConsoleOutput>();
+    private readonly HashSet<string> inputs = new HashSet<string>();
 
     GUIStyle outputBoxStyle, inputBoxStyle, outputLabelStyle, inputTextFieldStyle;
 
@@ -36,7 +42,7 @@ public class GameConsole : MonoBehaviour
     GameConsoleCommand<string> print;
     GameConsoleCommand quit;
     GameConsoleCommand<string> load_scene;
-    GameConsoleCommand restart;
+    GameConsoleCommand reload;
     GameConsoleCommand fullscreen;
     GameConsoleCommand<string> destroy;
     GameConsoleCommand<string, string> set_active;
@@ -46,15 +52,23 @@ public class GameConsole : MonoBehaviour
     GameConsoleCommand get_command_ids;
 
     private string input = string.Empty;
-    private readonly float canScrollSuggestionsAfterTime = 0.2f;
-    private readonly float canCompleteSuggestionAfterTime = 0.2f;
+    
+    private bool activated = false;
+    private bool justActivated = false;
+    private bool canDeactivate = false;
 
-    private bool activated;
-    private bool canDeactivate;
+    readonly TimedUnityAction timedAction = new TimedUnityAction();
+    Action currentTimedAction = null;
+    float currentTimedActionInterval = 0;
 
     private void Awake()
     {
         #region Initializing
+        if (font == null)
+        {
+            font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        }
+
         Color _outputBoxBackgroundColor = Helpers.GetConsoleTextColor(outputBoxBackgroundColor);
         Color _inputBoxBackgroundColor = Helpers.GetConsoleTextColor(inputBoxBackgroundColor);
 
@@ -76,6 +90,7 @@ public class GameConsole : MonoBehaviour
 
         outputLabelStyle = new GUIStyle()
         {
+            font = font,
             fontSize = fontSize,
             richText = true,
             normal = new GUIStyleState()
@@ -86,6 +101,7 @@ public class GameConsole : MonoBehaviour
 
         inputTextFieldStyle = new GUIStyle()
         {
+            font = font,
             fontSize = fontSize,
             richText = true,
             normal = new GUIStyleState()
@@ -94,7 +110,7 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        inputs.Add(string.Empty);
+        DontDestroyOnLoad(gameObject);
         #endregion
 
         #region Commands
@@ -107,7 +123,8 @@ public class GameConsole : MonoBehaviour
         {
             foreach (GameConsoleCommandBase consoleCommand in commands.Cast<GameConsoleCommandBase>())
             {
-                string commandFormat = consoleCommand.CommandFormat.WrapAlreadyWrappedPartsWithTags("i", '<', '>');
+                string commandFormat = consoleCommand.CommandFormat.WrapAlreadyWrappedPartsWithTags("i", '<', '>').Replace($"{consoleCommand.CommandId}",
+                    $"<b>{consoleCommand.CommandId}</b>");
                 string commandExample = string.Empty; //consoleCommand.CommandExample
                 //if (!string.IsNullOrEmpty(commandExample))
                 //{
@@ -120,7 +137,7 @@ public class GameConsole : MonoBehaviour
         help_of = new GameConsoleCommand<string>(
             $"{nameof(help_of)}",
             "Show information about a command",
-            $"{nameof(help_of)} <string: commandId>",
+            $"{nameof(help_of)} <str: commandId>",
             $"{nameof(help_of)} \"{nameof(help)}\"");
         help_of.Action = (commandId) =>
         {
@@ -152,7 +169,7 @@ public class GameConsole : MonoBehaviour
         print = new GameConsoleCommand<string>(
             $"{nameof(print)}",
             "Print text to the console",
-            $"{nameof(print)} <string: text>",
+            $"{nameof(print)} <str: text>",
             $"{nameof(print)} \"Hello world!\"");
         print.Action = (text) =>
         {
@@ -172,21 +189,32 @@ public class GameConsole : MonoBehaviour
         load_scene = new GameConsoleCommand<string>(
             $"{nameof(load_scene)}",
             "Load specific scene",
-            $"{nameof(load_scene)} <string: sceneName>",
+            $"{nameof(load_scene)} <str: sceneName>",
             $"{nameof(load_scene)} \"SampleScene\"");
         load_scene.Action = (sceneName) =>
         {
-            SceneManager.LoadScene(sceneName);
+            int sceneBuildIndex = SceneUtility.GetBuildIndexByScenePath(sceneName);
+
+            if (sceneBuildIndex > -1)
+            {
+                SceneManager.LoadScene(sceneName);
+                Print($"Loaded scene {sceneName}", ConsoleOutputType.Explanation);
+            }
+            else
+            {
+                Print($"Scene {sceneName} not found", ConsoleOutputType.Error);
+            }
         };
 
-        restart = new GameConsoleCommand(
-            $"{nameof(restart)}",
-            "Restart current scene",
-            $"{nameof(restart)}",
-            $"{nameof(restart)}");
-        restart.Action = () =>
+        reload = new GameConsoleCommand(
+            $"{nameof(reload)}",
+            "Reload the current scene",
+            $"{nameof(reload)}",
+            $"{nameof(reload)}");
+        reload.Action = () =>
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            Print($"Reloaded the current scene", ConsoleOutputType.Explanation);
         };
 
         fullscreen = new GameConsoleCommand(
@@ -203,7 +231,7 @@ public class GameConsole : MonoBehaviour
         destroy = new GameConsoleCommand<string>(
             $"{nameof(destroy)}",
             "Destroy specific game object",
-            $"{nameof(destroy)} <string: gameObjectName>",
+            $"{nameof(destroy)} <str: gameObjectName>",
             $"{nameof(destroy)} \"Player\"");
         destroy.Action = (gameObjectName) =>
         {
@@ -222,7 +250,7 @@ public class GameConsole : MonoBehaviour
         set_active = new GameConsoleCommand<string, string>(
             $"{nameof(set_active)}",
             "Activate or deactivate specific game object",
-            $"{nameof(set_active)} <string: gameObjectName> <bool: isTrue>",
+            $"{nameof(set_active)} <str: gameObjectName> <bool: isTrue>",
             $"{nameof(set_active)} \"Player\" false");
         set_active.Action = (gameObjectName, isTrue) =>
         {
@@ -238,7 +266,7 @@ public class GameConsole : MonoBehaviour
                 }
                 else
                 {
-                    throw new Exception();
+                    Print($"Game object {gameObjectName} not found", ConsoleOutputType.Error);
                 }
             }
             catch
@@ -250,7 +278,7 @@ public class GameConsole : MonoBehaviour
         get_attribute_of = new GameConsoleCommand<string, string>(
             $"{nameof(get_attribute_of)}",
             "Find a game object by name and get it's attribute value",
-            $"{nameof(get_attribute_of)} <string: gameObjectName> <string: gameObjectAttributeName>",
+            $"{nameof(get_attribute_of)} <str: gameObjectName> <str: gameObjectAttributeName>",
             $"{nameof(get_attribute_of)} \"Player\" \"position\"");
         get_attribute_of.Action = (gameObjectName, attributeName) =>
         {
@@ -269,7 +297,7 @@ public class GameConsole : MonoBehaviour
         set_attribute_of = new GameConsoleCommand<string, string, string>(
             $"{nameof(set_attribute_of)}",
             "Find a game object by name and set it's attribute value",
-            $"{nameof(set_attribute_of)} <string: gameObjectName> <string: gameObjectAttributeName> \"<object: gameObjectAttributeValue>\"",
+            $"{nameof(set_attribute_of)} <str: gameObjectName> <str: gameObjectAttributeName> <obj: gameObjectAttributeValue>",
             $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1.0, 1.0)\"");
         set_attribute_of.Action = (gameObjectName, attributeName, attributeValue) =>
         {
@@ -319,7 +347,7 @@ public class GameConsole : MonoBehaviour
             print,
             quit,
             load_scene,
-            restart,
+            reload,
             fullscreen,
             destroy,
             set_active,
@@ -331,14 +359,33 @@ public class GameConsole : MonoBehaviour
         #endregion
     }
 
+    void Start()
+    {
+        
+    }
+
     private void Update()
     {
-        if (Input.GetKeyDown(ActivateKey))
+        if (Input.GetKeyDown(activateKey))
         {
             if (!activated)
             {
                 activated = true;
+                justActivated = true;
                 StartCoroutine(CanDeactivateAfter(0.2f));
+            }
+        }
+
+        if (currentTimedAction != null)
+        {
+            if (currentTimedActionInterval > 0)
+            {
+                timedAction.Run(() => currentTimedAction(), currentTimedActionInterval);
+            }
+            else
+            {
+                currentTimedAction = null;
+                currentTimedActionInterval = 0;
             }
         }
     }
@@ -365,7 +412,7 @@ public class GameConsole : MonoBehaviour
                     input = string.Empty;
                 }
                 break;
-            case KeyCode keyCode when keyCode == ActivateKey:
+            case KeyCode keyCode when keyCode == activateKey:
                 if (canDeactivate)
                 {
                     input = string.Empty;
@@ -424,8 +471,12 @@ public class GameConsole : MonoBehaviour
         GUI.EndScrollView();
     }
 
+    int previousInputsCount = 0;
+    bool canRemoveWithBackspace = true;
+    bool showSuggestions = true;
     int currentSuggestionIndex = 0;
-    int currentInputHistoryIndex = inputs.Count + 1;
+    int currentInputHistoryIndex = 0;
+    string previousInput = string.Empty;
     bool canScrollSuggestions = true;
     bool canCompleteSuggestion = true;
     bool showInputHistorySuggestion = false;
@@ -447,13 +498,42 @@ public class GameConsole : MonoBehaviour
             textEditor.SetCaretIndex(input.Length);
         }
 
-        if (string.IsNullOrWhiteSpace(input))
+        if (inputs.Count != previousInputsCount)
         {
             currentSuggestionIndex = 0;
+            currentInputHistoryIndex = inputs.Count;
+            previousInputsCount = inputs.Count;
+        }
 
+        bool dontAddWrappers = false;
+        
+        if (Event.current.isKey && Event.current.keyCode == KeyCode.Backspace)
+        {
+            if (canRemoveWithBackspace)
+            {
+                int caretIndex = textEditor.GetCaretIndex();
+
+                if (caretIndex > 1)
+                {
+                    if (input.GetCharAt(caretIndex - 1) == '\"' && input.GetCharAt(caretIndex - 2) == '\"'
+                        || input.GetCharAt(caretIndex - 1) == '\'' && input.GetCharAt(caretIndex - 2) == '\'')
+                    {
+                        input = input.Remove(caretIndex - 2, 2);
+                        textEditor.SetCaretIndex(caretIndex - 2);
+                        Event.current.keyCode = KeyCode.None;
+                        StartCoroutine(CanRemoveWithBackspaceAfter(canRemoveWithBackspaceAfterTime));
+                    }
+                }
+            }
+
+            dontAddWrappers = true;
+        }
+
+        if (string.IsNullOrEmpty(input))
+        {
             if (showInputHistorySuggestion)
             {
-                inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex);
+                inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex, true) ?? string.Empty;
             }
 
             if (Event.current.isKey)
@@ -465,117 +545,178 @@ public class GameConsole : MonoBehaviour
                         {
                             // Apply input suggestion
 
-                            input = inputs.GetClosestAt(ref currentInputHistoryIndex);
-                            textEditor.SetCaretIndex(input.Length);
-                            currentInputHistoryIndex = inputs.Count + 1;
-                            inputSuggestion = string.Empty;
-                            showInputHistorySuggestion = false;
+                            if (!string.IsNullOrEmpty(inputSuggestion))
+                            {
+                                input = inputSuggestion;
+                                textEditor.SetCaretIndex(input.Length);
+                                currentInputHistoryIndex = inputs.Count;
+                                inputSuggestion = string.Empty;
+                                showInputHistorySuggestion = false;
+                                dontAddWrappers = true;
+                                StartCoroutine(DontShowSuggestionsFor(dontShowSuggestionsForTime));
+                            }
                         }
                         break;
                     case KeyCode.UpArrow:
+                        Event.current.keyCode = KeyCode.None;
                         if (inputs.Count > 0 && canScrollSuggestions)
                         {
                             // Suggest previous input in history
 
+                            if (currentInputHistoryIndex == -1)
+                            {
+                                currentInputHistoryIndex = inputs.Count;
+                            }
                             currentInputHistoryIndex--;
-                            inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex);
+                            inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex, true) ?? string.Empty;
                             showInputHistorySuggestion = true;
                             StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
                         }
-                        Event.current.keyCode = KeyCode.None;
                         break;
                     case KeyCode.DownArrow:
+                        Event.current.keyCode = KeyCode.None;
                         if (inputs.Count > 0 && canScrollSuggestions)
                         {
                             // Suggest next input in history
 
+                            if (currentInputHistoryIndex == inputs.Count)
+                            {
+                                currentInputHistoryIndex = -1;
+                            }
                             currentInputHistoryIndex++;
-                            inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex);
+                            inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex, true) ?? string.Empty;
                             showInputHistorySuggestion = true;
                             StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
                         }
-                        Event.current.keyCode = KeyCode.None;
                         break;
                 }
             }
-
-            goto RenderTextField;
         }
         else
         {
-            currentInputHistoryIndex = inputs.Count + 1;
+            currentInputHistoryIndex = inputs.Count;
             showInputHistorySuggestion = false;
-        }
-        
-        GetInputSuggestions(input, out HashSet<string> inputSuggestions);
 
-        if (!inputSuggestions.Any(s => s == inputReflection))
-        {
-            string currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+            GetInputSuggestions(input, out HashSet<string> inputSuggestions);
 
-            if (Event.current.isKey)
+            if (showSuggestions && !inputSuggestions.Any(s => s == inputReflection))
             {
-                switch (Event.current.keyCode)
+                string currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+
+                if (Event.current.isKey)
                 {
-                    case KeyCode.Tab:
-                        if (inputSuggestions.Count > 0)
-                        {
-                            // Apply suggestion
-
-                            string fullSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
-                            string firstPartOfSuggestion = fullSuggestion.GetFirstWord();
-                            if (canCompleteSuggestion && input.ToLower() == firstPartOfSuggestion.ToLower())
+                    switch (Event.current.keyCode)
+                    {
+                        case KeyCode.Tab:
+                            if (inputSuggestions.Count > 0)
                             {
-                                input = fullSuggestion;
+                                // Apply suggestion
+
+                                if (!string.IsNullOrEmpty(currentSuggestion))
+                                {
+                                    string fullSuggestion = currentSuggestion;
+                                    string firstPartOfSuggestion = fullSuggestion.GetFirstWord();
+                                    if (canCompleteSuggestion && input.ToLower() == firstPartOfSuggestion.ToLower())
+                                    {
+                                        input = fullSuggestion;
+                                    }
+                                    else
+                                    {
+                                        input = firstPartOfSuggestion;
+                                        StartCoroutine(CanCompleteSuggestionAfter(canCompleteSuggestionAfterTime));
+                                    }
+                                    textEditor.SetCaretIndex(input.Length);
+                                    currentSuggestionIndex = 0;
+                                    currentSuggestion = string.Empty;
+                                    dontAddWrappers = true;
+                                }
                             }
-                            else
+                            break;
+                        case KeyCode.UpArrow:
+                            Event.current.keyCode = KeyCode.None;
+                            if (inputSuggestions.Count > 0 && canScrollSuggestions)
                             {
-                                input = firstPartOfSuggestion;
-                                StartCoroutine(CanCompleteSuggestionAfter(canCompleteSuggestionAfterTime));
+                                // Show previous suggestion
+
+                                currentSuggestionIndex--;
+                                currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+                                StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
                             }
-                            textEditor.SetCaretIndex(input.Length);
-                            currentSuggestionIndex = 0;
-                            currentSuggestion = string.Empty;
-                        }
-                        break;
-                    case KeyCode.UpArrow:
-                        if (inputSuggestions.Count > 0 && canScrollSuggestions)
-                        {
-                            // Show previous suggestion
+                            break;
+                        case KeyCode.DownArrow:
+                            Event.current.keyCode = KeyCode.None;
+                            if (inputSuggestions.Count > 0 && canScrollSuggestions)
+                            {
+                                // Show next suggestion
 
-                            currentSuggestionIndex--;
-                            currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
-                            StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
-                        }
-                        Event.current.keyCode = KeyCode.None;
-                        break;
-                    case KeyCode.DownArrow:
-                        if (inputSuggestions.Count > 0 && canScrollSuggestions)
-                        {
-                            // Show next suggestion
+                                currentSuggestionIndex++;
+                                currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+                                StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+                            }
+                            break;
+                    }
+                }
 
-                            currentSuggestionIndex++;
-                            currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
-                            StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+                inputSuggestion = !string.IsNullOrEmpty(currentSuggestion) ? currentSuggestion.RemovePartFromStart(input) : string.Empty;
+            }
+        }
+
+        GUI.SetNextControlName("InputField");
+
+        string _input = GUI.TextField(new Rect(10, inputPositionY + 5, Screen.width - 20, inputTextFieldHeight),
+            $"{input}{(!string.IsNullOrEmpty(inputSuggestion) ? $"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>" : string.Empty)}",
+            inputTextFieldStyle);
+        input = !string.IsNullOrEmpty(inputSuggestion) ? _input.Replace($"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>", string.Empty) : _input;
+
+        GUI.FocusControl("InputField");
+
+        // On input change
+        if (input != previousInput)
+        {
+            if (!dontAddWrappers)
+            {
+                int caretIndex = textEditor.GetCaretIndex();
+                string selectedText = textEditor.SelectedText;
+
+                if (caretIndex > 0)
+                {
+                    char foundChar = '\0';
+
+                    switch (input.GetCharAt(caretIndex - 1))
+                    {
+                        case '"':
+                            foundChar = '"';
+                            break;
+                        case '\'':
+                            foundChar = '\'';
+                            break;
+                    }
+
+                    if (foundChar != '\0')
+                    {
+                        if (selectedText.Length > 0)
+                        {
+                            input = input.WrapFirstFoundPart(selectedText, foundChar);
                         }
-                        Event.current.keyCode = KeyCode.None;
-                        break;
+                        else
+                        {
+                            input = input.Remove(caretIndex - 1, 1).AddWrappersTo(caretIndex - 1, foundChar);
+                        }
+                    }
                 }
             }
 
-            inputSuggestion = !string.IsNullOrEmpty(currentSuggestion) ? currentSuggestion.RemovePartFromStart(input) : string.Empty;
+            currentSuggestionIndex = 0;
+
+            previousInput = input;
         }
-
-        RenderTextField:
+        
+        // On activate
+        if (justActivated)
         {
-            GUI.SetNextControlName("InputField");
 
-            string _input = GUI.TextField(new Rect(10, inputPositionY + 5, Screen.width - 20, inputTextFieldHeight),
-                $"{input}{(!string.IsNullOrEmpty(inputSuggestion) ? $"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>" : string.Empty)}",
-                inputTextFieldStyle);
-            input = !string.IsNullOrEmpty(inputSuggestion) ? _input.Replace($"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>", string.Empty) : _input;
 
-            GUI.FocusControl("InputField");
+            justActivated = false;
         }
     }
 
@@ -603,7 +744,19 @@ public class GameConsole : MonoBehaviour
         inputs.Add(input);
         Print($"> {input}", ConsoleOutputType.Information);
 
-        string[] inputParts = input.SplitAllNonWrapped(' ', '"');
+        string[] inputParts;
+        if (input.ContainsAmount('"') > 1)
+        {
+            inputParts = input.SplitAllNonWrapped(' ', '"');
+        }
+        else if (input.ContainsAmount('\'') > 1)
+        {
+            inputParts = input.SplitAllNonWrapped(' ', '\'');
+        }
+        else
+        {
+            inputParts = input.Split(' ');
+        }
 
         int previousOutputsCount = outputs.Count;
 
@@ -674,9 +827,33 @@ public class GameConsole : MonoBehaviour
         return false;
     }
 
-    private static void PrintWrongUsageOfCommandError(string commandId)
+    private void PrintWrongUsageOfCommandError(string commandId)
     {
-        Print($"Incorrect usage of the command \"{commandId}\". Use \"help_of {commandId}\" to get more information about the command.", ConsoleOutputType.Error);
+        Print($"Incorrect usage of the command \"{commandId}\" (use \"help_of '{commandId}'\" to get details about the command)", ConsoleOutputType.Error);
+    }
+
+    /// <summary>
+    /// Used to set small delay to suggestion showing (since OnGui() is called many times per frame)
+    /// </summary>
+    private IEnumerator CanRemoveWithBackspaceAfter(float seconds)
+    {
+        canRemoveWithBackspace = false;
+
+        yield return new WaitForSeconds(seconds);
+
+        canRemoveWithBackspace = true;
+    }
+
+    /// <summary>
+    /// Used to set small delay to suggestion showing (since OnGui() is called many times per frame)
+    /// </summary>
+    private IEnumerator DontShowSuggestionsFor(float seconds)
+    {
+        showSuggestions = false;
+
+        yield return new WaitForSeconds(seconds);
+
+        showSuggestions = true;
     }
 
     /// <summary>
@@ -708,16 +885,34 @@ public class GameConsole : MonoBehaviour
     /// </summary>
     private IEnumerator CanDeactivateAfter(float seconds)
     {
+        canDeactivate = false;
+
         yield return new WaitForSeconds(seconds);
 
         canDeactivate = true;
     }
 
     /// <summary>
+    /// Set the console activation key.
+    /// </summary>
+    public void SetActivateKey(KeyCode keyCode)
+    {
+        activateKey = keyCode;
+    }
+
+    /// <summary>
+    /// Get the console activation key.
+    /// </summary>
+    public KeyCode GetActivateKey()
+    {
+        return activateKey;
+    }
+
+    /// <summary>
     /// Get the commands reflected.
     /// </summary>
     /// <returns>An array of the reflected commands.</returns>
-    public static GameConsoleCommandBase[] GetReflectedCommands()
+    public GameConsoleCommandBase[] GetReflectedCommands()
     {
         List<GameConsoleCommandBase> newCommands = new List<GameConsoleCommandBase>();
 
@@ -733,7 +928,7 @@ public class GameConsole : MonoBehaviour
     /// Get the outputs reflected.
     /// </summary>
     /// <returns>An array of the reflected outputs.</returns>
-    public static GameConsoleOutput[] GetReflectedOutputs()
+    public GameConsoleOutput[] GetReflectedOutputs()
     {
         List<GameConsoleOutput> newOutputs = new List<GameConsoleOutput>();
 
@@ -748,7 +943,7 @@ public class GameConsole : MonoBehaviour
     /// <summary>
     /// Print text to the console.
     /// </summary>
-    public static void Print(string text, ConsoleOutputType outputType = ConsoleOutputType.Information)
+    public void Print(string text, ConsoleOutputType outputType = ConsoleOutputType.Information)
     {
         outputs.Add(new GameConsoleOutput(text, outputType));
     }
@@ -756,7 +951,7 @@ public class GameConsole : MonoBehaviour
     /// <summary>
     /// Clear the console.
     /// </summary>
-    public static void Clear()
+    public void Clear()
     {
         outputs.Clear();
     }
