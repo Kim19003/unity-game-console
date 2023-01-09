@@ -6,6 +6,7 @@ using System.Reflection;
 using UnityEditor.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UIElements;
 using Color = UnityEngine.Color;
 using TextEditor = UnityEngine.TextEditor;
 
@@ -14,17 +15,33 @@ public class GameConsole : MonoBehaviour
     [SerializeField] private Font font;
     [SerializeField] private KeyCode activateKey = KeyCode.Escape;
     [SerializeField] private int fontSize = 16;
-    [SerializeField] private float height = 200;
-    [SerializeField] private ConsoleTextColor defaultTextColor = ConsoleTextColor.White;
-    [SerializeField] private ConsoleTextColor inputSuggestionTextColor = ConsoleTextColor.Grey;
-    [SerializeField] private ConsoleTextColor outputExplanationTextColor = ConsoleTextColor.Grey;
-    [SerializeField] private ConsoleTextColor outputWarningTextColor = ConsoleTextColor.Yellow;
-    [SerializeField] private ConsoleTextColor outputErrorTextColor = ConsoleTextColor.Red;
-    [SerializeField] private ConsoleTextColor outputBoxBackgroundColor = ConsoleTextColor.Black;
-    [SerializeField] private float outputBoxBackgroundColorAlpha = 0.5f;
-    [SerializeField] private ConsoleTextColor inputBoxBackgroundColor = ConsoleTextColor.Black;
-    [SerializeField] private float inputBoxBackgroundColorAlpha = 0.6f;
+    [SerializeField] private float outputBoxHeight = 200;
+    [SerializeField] private int outputLabelHeight = 20;
+    [SerializeField] private int inputTextFieldHeight = 20;
 
+    [SerializeField] private Color defaultTextColor = Color.white;
+    [SerializeField] private RichTextColor inputSuggestionTextColor = RichTextColor.Grey;
+    [SerializeField] private RichTextColor outputExplanationTextColor = RichTextColor.Grey;
+    [SerializeField] private RichTextColor outputWarningTextColor = RichTextColor.Yellow;
+    [SerializeField] private RichTextColor outputErrorTextColor = RichTextColor.Red;
+    
+    [SerializeField] private Texture2D outputBoxBackgroundTexture;
+    [SerializeField] private Color outputBoxBackgroundColor = Color.black;
+    [SerializeField] private float outputBoxBackgroundColorAlpha = 0.5f;
+    [SerializeField] private Texture2D outputBoxBorderBackgroundTexture;
+    [SerializeField] private float outputBoxBorderSize = 0f;
+    [SerializeField] private Color outputBoxBorderBackgroundColor = Color.gray;
+    [SerializeField] private float outputBoxBorderBackgroundColorAlpha = 1f;
+
+    [SerializeField] private Texture2D inputBoxBackgroundTexture;
+    [SerializeField] private Color inputBoxBackgroundColor = Color.black;
+    [SerializeField] private float inputBoxBackgroundColorAlpha = 0.6f;
+    [SerializeField] private Texture2D inputBoxBorderBackgroundTexture;
+    [SerializeField] private float inputBoxBorderSize = 0f;
+    [SerializeField] private Color inputBoxBorderBackgroundColor = Color.gray;
+    [SerializeField] private float inputBoxBorderBackgroundColorAlpha = 1f;
+
+    #region Boring variables
     private readonly float canRemoveWithBackspaceAfterTime = 0.2f;
     private readonly float canScrollSuggestionsAfterTime = 0.2f;
     private readonly float canCompleteSuggestionAfterTime = 0.2f;
@@ -34,7 +51,7 @@ public class GameConsole : MonoBehaviour
     private readonly List<GameConsoleOutput> outputs = new List<GameConsoleOutput>();
     private readonly HashSet<string> inputs = new HashSet<string>();
 
-    GUIStyle outputBoxStyle, inputBoxStyle, outputLabelStyle, inputTextFieldStyle;
+    GUIStyle outputBoxStyle, inputBoxStyle, outputBoxBorderStyle, inputBoxBorderStyle, outputLabelStyle, inputTextFieldStyle;
 
     GameConsoleCommand help;
     GameConsoleCommand<string> help_of;
@@ -60,6 +77,7 @@ public class GameConsole : MonoBehaviour
     readonly TimedUnityAction timedAction = new TimedUnityAction();
     Action currentTimedAction = null;
     float currentTimedActionInterval = 0;
+    #endregion
 
     private void Awake()
     {
@@ -69,14 +87,47 @@ public class GameConsole : MonoBehaviour
             font = Resources.GetBuiltinResource<Font>("Arial.ttf");
         }
 
-        Color _outputBoxBackgroundColor = Helpers.GetConsoleTextColor(outputBoxBackgroundColor);
-        Color _inputBoxBackgroundColor = Helpers.GetConsoleTextColor(inputBoxBackgroundColor);
+        if (outputBoxBackgroundTexture == null)
+        {
+            outputBoxBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(outputBoxBackgroundColor.r, outputBoxBackgroundColor.g, outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha));
+        }
+        else
+        {
+            outputBoxBackgroundTexture.FillWithColor(new Color(outputBoxBackgroundColor.r, outputBoxBackgroundColor.g, outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha));
+        }
+
+        if (inputBoxBackgroundTexture == null)
+        {
+            inputBoxBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(inputBoxBackgroundColor.r, inputBoxBackgroundColor.g, inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha));
+        }
+        else
+        {
+            inputBoxBackgroundTexture.FillWithColor(new Color(inputBoxBackgroundColor.r, inputBoxBackgroundColor.g, inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha));
+        }
+
+        if (outputBoxBorderBackgroundTexture == null)
+        {
+            outputBoxBorderBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(outputBoxBorderBackgroundColor.r, outputBoxBorderBackgroundColor.g, outputBoxBorderBackgroundColor.b, outputBoxBorderBackgroundColorAlpha));
+        }
+        else
+        {
+            outputBoxBorderBackgroundTexture.FillWithColor(new Color(outputBoxBorderBackgroundColor.r, outputBoxBorderBackgroundColor.g, outputBoxBorderBackgroundColor.b, outputBoxBorderBackgroundColorAlpha));
+        }
+
+        if (inputBoxBorderBackgroundTexture == null)
+        {
+            inputBoxBorderBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(inputBoxBorderBackgroundColor.r, inputBoxBorderBackgroundColor.g, inputBoxBorderBackgroundColor.b, inputBoxBorderBackgroundColorAlpha));
+        }
+        else
+        {
+            inputBoxBorderBackgroundTexture.FillWithColor(new Color(inputBoxBorderBackgroundColor.r, inputBoxBorderBackgroundColor.g, inputBoxBorderBackgroundColor.b, inputBoxBorderBackgroundColorAlpha));
+        }
 
         outputBoxStyle = new GUIStyle()
         {
             normal = new GUIStyleState()
             {
-                background = Helpers.MakeTexture(1, 1, new Color(_outputBoxBackgroundColor.r, _outputBoxBackgroundColor.g, _outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha))
+                background = outputBoxBackgroundTexture
             }
         };
 
@@ -84,7 +135,23 @@ public class GameConsole : MonoBehaviour
         {
             normal = new GUIStyleState()
             {
-                background = Helpers.MakeTexture(1, 1, new Color(_inputBoxBackgroundColor.r, _inputBoxBackgroundColor.g, _inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha))
+                background = inputBoxBackgroundTexture
+            }
+        };
+
+        outputBoxBorderStyle = new GUIStyle()
+        {
+            normal = new GUIStyleState()
+            {
+                background = outputBoxBorderBackgroundTexture
+            }
+        };
+
+        inputBoxBorderStyle = new GUIStyle()
+        {
+            normal = new GUIStyleState()
+            {
+                background = inputBoxBorderBackgroundTexture
             }
         };
 
@@ -95,7 +162,7 @@ public class GameConsole : MonoBehaviour
             richText = true,
             normal = new GUIStyleState()
             {
-                textColor = Helpers.GetConsoleTextColor(defaultTextColor)
+                textColor = defaultTextColor
             }
         };
 
@@ -106,7 +173,7 @@ public class GameConsole : MonoBehaviour
             richText = true,
             normal = new GUIStyleState()
             {
-                textColor = Helpers.GetConsoleTextColor(defaultTextColor)
+                textColor = defaultTextColor
             }
         };
 
@@ -145,14 +212,14 @@ public class GameConsole : MonoBehaviour
             
             if (command != null)
             {
-                Print($"Id: {command.CommandId}", ConsoleOutputType.Explanation);
+                Print($"Id: <b>{command.CommandId}</b>", ConsoleOutputType.Explanation);
                 Print($"Description: {command.CommandDescription}", ConsoleOutputType.Explanation);
                 Print($"Format: {command.CommandFormat.WrapAlreadyWrappedPartsWithTags("i", '<', '>')}", ConsoleOutputType.Explanation);
                 Print($"Usage example: {command.CommandExample}", ConsoleOutputType.Explanation);
             }
             else
             {
-                PrintWrongUsageOfCommandError(help_of.CommandId);
+                PrintNotFoundError("Command", commandId);
             }
         };
 
@@ -202,7 +269,7 @@ public class GameConsole : MonoBehaviour
             }
             else
             {
-                Print($"Scene {sceneName} not found", ConsoleOutputType.Error);
+                PrintNotFoundError("Scene", sceneName);
             }
         };
 
@@ -224,8 +291,8 @@ public class GameConsole : MonoBehaviour
             $"{nameof(fullscreen)}");
         fullscreen.Action = () =>
         {
-            Print($"Fullscreen: {!Screen.fullScreen}", ConsoleOutputType.Explanation);
             Screen.fullScreen = !Screen.fullScreen;
+            Print($"Fullscreen: {!Screen.fullScreen}", ConsoleOutputType.Explanation);
         };
 
         destroy = new GameConsoleCommand<string>(
@@ -243,7 +310,7 @@ public class GameConsole : MonoBehaviour
             }
             else
             {
-                PrintWrongUsageOfCommandError(destroy.CommandId);
+                PrintNotFoundError("Game object", gameObjectName);
             }
         };
 
@@ -254,24 +321,31 @@ public class GameConsole : MonoBehaviour
             $"{nameof(set_active)} \"Player\" false");
         set_active.Action = (gameObjectName, isTrue) =>
         {
-            try
+            GameObject gameObject = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(go => go.name == gameObjectName);
+
+            if (gameObject != null)
             {
-                GameObject gameObject = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(go => go.name == gameObjectName);
-
-                bool value = Convert.ToBool(isTrue);
-
-                if (gameObject != null)
+                try
                 {
+                    bool value = Convert.ToBool(isTrue);
                     gameObject.SetActive(value);
+                    Print($"{gameObject.transform.name} is now {(value ? "activated" : "deactivated")}", ConsoleOutputType.Explanation);
                 }
-                else
+                catch (Exception ex)
                 {
-                    Print($"Game object {gameObjectName} not found", ConsoleOutputType.Error);
+                    if (ex is ArgumentNullException || ex is FormatException)
+                    {
+                        PrintIncorrectTypeError("Argument", nameof(isTrue));
+                    }
+                    else
+                    {
+                        PrintWrongUsageOfCommandError(set_attribute_of.CommandId);
+                    }
                 }
             }
-            catch
+            else
             {
-                PrintWrongUsageOfCommandError(set_active.CommandId);
+                PrintNotFoundError("Game object", gameObjectName);
             }
         };
 
@@ -282,15 +356,30 @@ public class GameConsole : MonoBehaviour
             $"{nameof(get_attribute_of)} \"Player\" \"position\"");
         get_attribute_of.Action = (gameObjectName, attributeName) =>
         {
-            try
+            GameObject gameObject = GameObject.Find(gameObjectName);
+
+            if (gameObject != null)
             {
-                GameObject gameObject = GameObject.Find(gameObjectName);
-                string attributeValue = gameObject.GetAttributeValue(attributeName);
-                Print($"{gameObject.transform.name}'s {attributeName} is {attributeValue}", ConsoleOutputType.Explanation);
+                try
+                {
+                    string attributeValue = gameObject.GetAttributeValue(attributeName);
+                    Print($"{gameObject.transform.name}'s {attributeName} is {attributeValue}", ConsoleOutputType.Explanation);
+                }
+                catch (Exception ex)
+                {
+                    if (ex is ArgumentException)
+                    {
+                        PrintNotFoundError("Attribute", attributeName);
+                    }
+                    else
+                    {
+                        PrintWrongUsageOfCommandError(set_attribute_of.CommandId);
+                    }
+                }
             }
-            catch
+            else
             {
-                PrintWrongUsageOfCommandError(get_attribute_of.CommandId);
+                PrintNotFoundError("Game object", gameObjectName);
             }
         };
 
@@ -299,23 +388,42 @@ public class GameConsole : MonoBehaviour
             "Find a game object by name and set it's attribute value",
             $"{nameof(set_attribute_of)} <str: gameObjectName> <str: gameObjectAttributeName> <obj: gameObjectAttributeValue>",
             $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1.0, 1.0)\"");
-        set_attribute_of.Action = (gameObjectName, attributeName, attributeValue) =>
+        set_attribute_of.Action = (gameObjectName, gameObjectAttributeName, gameObjectAttributeValue) =>
         {
-            try
+            GameObject gameObject = GameObject.Find(gameObjectName);
+
+            if (gameObject != null)
             {
-                GameObject gameObject = GameObject.Find(gameObjectName);
-                gameObject.SetAttributeValue(attributeName, attributeValue);
-                Print($"{gameObject.transform.name}'s {attributeName} is now {gameObject.GetAttributeValue(attributeName)}", ConsoleOutputType.Explanation);
+                try
+                {
+                    gameObject.SetAttributeValue(gameObjectAttributeName, gameObjectAttributeValue);
+                    Print($"{gameObject.transform.name}'s {gameObjectAttributeName} is now {gameObject.GetAttributeValue(gameObjectAttributeName)}", ConsoleOutputType.Explanation);
+                }
+                catch (Exception ex)
+                {
+                    if (ex is ArgumentNullException || ex is FormatException)
+                    {
+                        PrintIncorrectTypeError("Argument", nameof(gameObjectAttributeValue));
+                    }
+                    else if (ex is ArgumentException)
+                    {
+                        PrintNotFoundError("Attribute", gameObjectAttributeName);
+                    }
+                    else
+                    {
+                        PrintWrongUsageOfCommandError(set_attribute_of.CommandId);
+                    }
+                }
             }
-            catch
+            else
             {
-                PrintWrongUsageOfCommandError(set_attribute_of.CommandId);
+                PrintNotFoundError("Game object", gameObjectName);
             }
         };
 
         get_admitted_attribute_names = new GameConsoleCommand(
             $"{nameof(get_admitted_attribute_names)}",
-            "Get the game object's admitted attribute names",
+            "Get the GameObject type's admitted attribute names",
             $"{nameof(get_admitted_attribute_names)}",
             $"{nameof(get_admitted_attribute_names)}");
         get_admitted_attribute_names.Action = () =>
@@ -359,6 +467,7 @@ public class GameConsole : MonoBehaviour
         #endregion
     }
 
+    #region Start, Update and FixedUpdate methods
     void Start()
     {
         
@@ -390,8 +499,14 @@ public class GameConsole : MonoBehaviour
         }
     }
 
-    private Vector2 scrollPosition;
-    private Rect viewRect;
+    private void FixedUpdate()
+    {
+
+    }
+    #endregion
+
+    private Vector2 scrollViewScrollPosition;
+    private Rect scrollViewViewRect;
 
     private void OnGUI()
     {
@@ -400,8 +515,8 @@ public class GameConsole : MonoBehaviour
             return;
         }
 
-        HandleOutputField(0, ref viewRect, ref scrollPosition);
-        HandleInputField(height, ref input);
+        HandleOutputField(0, ref scrollViewViewRect, ref scrollViewScrollPosition);
+        HandleInputField(outputBoxHeight, ref input);
 
         switch (Event.current.keyCode)
         {
@@ -423,23 +538,35 @@ public class GameConsole : MonoBehaviour
         }
     }
 
-    readonly int outputLabelHeight = 20;
+    readonly int scrollViewViewRectMarginRight = 30;
+
+    readonly int scrollViewScrollPositionMarginTop = 5;
+    readonly int scrollViewScrollPositionMarginBottom = 10;
+
+    readonly int outputBoxPaddingTop = 2;
+    readonly int outputLabelMarginLeft = 10;
     readonly int outputLabelMarginBottom = 2;
+
     int previousOutputCount = -1;
 
-    private void HandleOutputField(float outputPositionY, ref Rect viewRect, ref Vector2 scrollPosition)
+    private void HandleOutputField(float outputPositionY, ref Rect scrollViewViewRect, ref Vector2 scrollViewScrollPosition)
     {
-        viewRect = new Rect(0, 0, Screen.width - 30, (outputLabelHeight + outputLabelMarginBottom) * outputs.Count);
+        Rect borderedBoxContentPartRect = GUIExtensions.BorderedBox(new Rect(0, outputPositionY, Screen.width, outputBoxHeight), string.Empty, outputBoxStyle,
+            outputBoxBorderSize, outputBoxBorderStyle);
 
-        GUI.Box(new Rect(0, outputPositionY, Screen.width, height), string.Empty, outputBoxStyle);
+        scrollViewViewRect = new Rect(borderedBoxContentPartRect.x, borderedBoxContentPartRect.y, borderedBoxContentPartRect.width - scrollViewViewRectMarginRight,
+            (outputLabelHeight + outputLabelMarginBottom) * outputs.Count);
 
         if (previousOutputCount != outputs.Count)
         {
-            scrollPosition.y = viewRect.height;
+            scrollViewScrollPosition.y = scrollViewViewRect.height;
             previousOutputCount = outputs.Count;
         }
         
-        scrollPosition = GUI.BeginScrollView(new Rect(0, outputPositionY + 5f, Screen.width, height - 10), scrollPosition, viewRect);
+        scrollViewScrollPosition = GUI.BeginScrollView(new Rect(borderedBoxContentPartRect.x, borderedBoxContentPartRect.y + scrollViewScrollPositionMarginTop,
+            borderedBoxContentPartRect.width, borderedBoxContentPartRect.height - scrollViewScrollPositionMarginBottom), scrollViewScrollPosition, scrollViewViewRect);
+
+        outputPositionY = borderedBoxContentPartRect.y + outputBoxPaddingTop;
 
         foreach (GameConsoleOutput output in outputs)
         {
@@ -463,13 +590,20 @@ public class GameConsole : MonoBehaviour
                     newOutputText = $"<color={defaultTextColor.ToString().ToLower()}>{output.Text.RemoveTags("color")}</color>";
                     break;
             }
-            GUI.Label(new Rect(10, outputPositionY, Screen.width, (outputLabelHeight + outputLabelMarginBottom)), $"{newOutputText}", outputLabelStyle);
+            GUI.Label(new Rect(borderedBoxContentPartRect.x + outputLabelMarginLeft, outputPositionY, borderedBoxContentPartRect.width,
+                outputLabelHeight + outputLabelMarginBottom), $"{newOutputText}", outputLabelStyle);
 
-            outputPositionY += (outputLabelHeight + outputLabelMarginBottom);
+            outputPositionY += outputLabelHeight + outputLabelMarginBottom;
         }
 
         GUI.EndScrollView();
     }
+
+    readonly int inputBoxHeightAdditionToTextField = 10;
+
+    readonly int textFieldMarginLeft = 10;
+    readonly int textFieldMarginTop = 5;
+    readonly int textFieldMarginRight = 20;
 
     int previousInputsCount = 0;
     bool canRemoveWithBackspace = true;
@@ -480,12 +614,13 @@ public class GameConsole : MonoBehaviour
     bool canScrollSuggestions = true;
     bool canCompleteSuggestion = true;
     bool showInputHistorySuggestion = false;
-    readonly int inputTextFieldHeight = 20;
+    int delayedCaretIndex = -1;
+    bool selectNewParagraph = false;
 
     private void HandleInputField(float inputPositionY, ref string input)
     {
-        GUI.Box(new Rect(0, inputPositionY, Screen.width, inputTextFieldHeight + 10), string.Empty, inputBoxStyle);
-        GUI.backgroundColor = new Color(0, 0, 0, 0);
+        Rect borderedBoxContentPartRect = GUIExtensions.BorderedBox(new Rect(0, inputPositionY, Screen.width, inputTextFieldHeight + inputBoxHeightAdditionToTextField),
+            string.Empty, inputBoxStyle, inputBoxBorderSize, inputBoxBorderStyle, BorderDirection.Left | BorderDirection.Right | BorderDirection.Bottom);
 
         int textFieldControlId = GUIUtility.keyboardControl;
         string inputReflection = input;
@@ -513,13 +648,13 @@ public class GameConsole : MonoBehaviour
             {
                 int caretIndex = textEditor.GetCaretIndex();
 
-                if (caretIndex > 1)
+                if (caretIndex > 0)
                 {
-                    if (input.GetCharAt(caretIndex - 1) == '\"' && input.GetCharAt(caretIndex - 2) == '\"'
-                        || input.GetCharAt(caretIndex - 1) == '\'' && input.GetCharAt(caretIndex - 2) == '\'')
+                    if (input.GetCharAt(caretIndex - 1) == '\"' && input.GetCharAt(caretIndex) == '\"'
+                        || input.GetCharAt(caretIndex - 1) == '\'' && input.GetCharAt(caretIndex) == '\'')
                     {
-                        input = input.Remove(caretIndex - 2, 2);
-                        textEditor.SetCaretIndex(caretIndex - 2);
+                        input = input.Remove(caretIndex - 1, 2);
+                        textEditor.SetCaretIndex(caretIndex - 1);
                         Event.current.keyCode = KeyCode.None;
                         StartCoroutine(CanRemoveWithBackspaceAfter(canRemoveWithBackspaceAfterTime));
                     }
@@ -661,44 +796,89 @@ public class GameConsole : MonoBehaviour
             }
         }
 
-        GUI.SetNextControlName("InputField");
+        string selectedTextBeforeTextFieldUpdate = textEditor.SelectedText;
 
-        string _input = GUI.TextField(new Rect(10, inputPositionY + 5, Screen.width - 20, inputTextFieldHeight),
-            $"{input}{(!string.IsNullOrEmpty(inputSuggestion) ? $"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>" : string.Empty)}",
+        GUI.SetNextControlName("InputField");
+        
+        string _input = GUI.TextField(new Rect(borderedBoxContentPartRect.x + textFieldMarginLeft, borderedBoxContentPartRect.y + textFieldMarginTop,
+            borderedBoxContentPartRect.width - textFieldMarginRight, inputTextFieldHeight), $"{input}" +
+            $"{(!string.IsNullOrEmpty(inputSuggestion) ? $"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>" : string.Empty)}",
             inputTextFieldStyle);
-        input = !string.IsNullOrEmpty(inputSuggestion) ? _input.Replace($"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>", string.Empty) : _input;
+
+        input = !string.IsNullOrEmpty(inputSuggestion) ? _input.Replace($"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>", string.Empty)
+            : _input;
 
         GUI.FocusControl("InputField");
+
+        if (delayedCaretIndex > -1)
+        {
+            if (selectNewParagraph)
+            {
+                textEditor.SelectParagraphForward();
+                textEditor.SetCaretIndex(delayedCaretIndex, false);
+
+                selectNewParagraph = false;
+            }
+            else
+            {
+                textEditor.SetCaretIndex(delayedCaretIndex);
+            }
+
+            delayedCaretIndex = -1;
+        }
 
         // On input change
         if (input != previousInput)
         {
             if (!dontAddWrappers)
             {
-                int caretIndex = textEditor.GetCaretIndex();
-                string selectedText = textEditor.SelectedText;
-
-                if (caretIndex > 0)
+                if (selectedTextBeforeTextFieldUpdate.Length > 0)
                 {
-                    char foundChar = '\0';
+                    int selectIndex = textEditor.selectIndex;
+                    int caretIndex = textEditor.GetCaretIndex();
 
-                    switch (input.GetCharAt(caretIndex - 1))
+                    if (selectIndex > 0)
                     {
-                        case '"':
-                            foundChar = '"';
-                            break;
-                        case '\'':
-                            foundChar = '\'';
-                            break;
-                    }
+                        char foundChar = '\0';
 
-                    if (foundChar != '\0')
-                    {
-                        if (selectedText.Length > 0)
+                        switch (input.GetCharAt(selectIndex - 1))
                         {
-                            input = input.WrapFirstFoundPart(selectedText, foundChar);
+                            case '"':
+                                foundChar = '"';
+                                break;
+                            case '\'':
+                                foundChar = '\'';
+                                break;
                         }
-                        else
+
+                        if (foundChar != '\0')
+                        {
+                            input = input.Remove(selectIndex - 1, 1).Insert(selectIndex - 1, selectedTextBeforeTextFieldUpdate.WrapWith(foundChar));
+
+                            delayedCaretIndex = selectIndex + selectedTextBeforeTextFieldUpdate.Length;
+                            selectNewParagraph = true;
+                        }
+                    }
+                }
+                else
+                {
+                    int caretIndex = textEditor.GetCaretIndex();
+
+                    if (caretIndex > 0)
+                    {
+                        char foundChar = '\0';
+
+                        switch (input.GetCharAt(caretIndex - 1))
+                        {
+                            case '"':
+                                foundChar = '"';
+                                break;
+                            case '\'':
+                                foundChar = '\'';
+                                break;
+                        }
+
+                        if (foundChar != '\0')
                         {
                             input = input.Remove(caretIndex - 1, 1).AddWrappersTo(caretIndex - 1, foundChar);
                         }
@@ -745,13 +925,9 @@ public class GameConsole : MonoBehaviour
         Print($"> {input}", ConsoleOutputType.Information);
 
         string[] inputParts;
-        if (input.ContainsAmount('"') > 1)
+        if (input.ContainsAmountOf('\"') > 1 || input.ContainsAmountOf('\'') > 1)
         {
-            inputParts = input.SplitAllNonWrapped(' ', '"');
-        }
-        else if (input.ContainsAmount('\'') > 1)
-        {
-            inputParts = input.SplitAllNonWrapped(' ', '\'');
+            inputParts = input.SplitAllNonWrapped(' ', new char[] { '\"', '\'' });
         }
         else
         {
@@ -827,11 +1003,22 @@ public class GameConsole : MonoBehaviour
         return false;
     }
 
-    private void PrintWrongUsageOfCommandError(string commandId)
+    private void PrintIncorrectTypeError(string thing, string thingName)
     {
-        Print($"Incorrect usage of the command \"{commandId}\" (use \"help_of '{commandId}'\" to get details about the command)", ConsoleOutputType.Error);
+        Print($"{thing} \"{thingName}\" is not the correct type", ConsoleOutputType.Error);
     }
 
+    private void PrintNotFoundError(string thing, string thingName)
+    {
+        Print($"{thing} \"{thingName}\" not found", ConsoleOutputType.Error);
+    }
+
+    private void PrintWrongUsageOfCommandError(string commandId)
+    {
+        Print($"Incorrect usage of the command \"{commandId}\" (use \"help_of <b>{commandId}</b>\" to get details about the command)", ConsoleOutputType.Error);
+    }
+
+    #region IEnumerators
     /// <summary>
     /// Used to set small delay to suggestion showing (since OnGui() is called many times per frame)
     /// </summary>
@@ -891,7 +1078,9 @@ public class GameConsole : MonoBehaviour
 
         canDeactivate = true;
     }
+    #endregion
 
+    #region Public methods
     /// <summary>
     /// Set the console activation key.
     /// </summary>
@@ -955,4 +1144,5 @@ public class GameConsole : MonoBehaviour
     {
         outputs.Clear();
     }
+    #endregion
 }

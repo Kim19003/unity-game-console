@@ -1,14 +1,10 @@
-﻿using JetBrains.Annotations;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEditor.UI;
-using UnityEditor.VersionControl;
-using UnityEditorInternal;
 using UnityEngine;
 using TextEditor = UnityEngine.TextEditor;
 
-public enum ConsoleTextColor
+public enum RichTextColor
 {
     Aqua,
     Black,
@@ -40,6 +36,17 @@ public enum CustomColor
     LightGray
 }
 
+[Flags]
+public enum BorderDirection
+{
+    None = 0,
+    Top = 1,
+    Right = 2,
+    Bottom = 4,
+    Left = 8,
+    All = Top | Right | Bottom | Left
+}
+
 public class Helpers
 {
     public static Color32 GetCustomColor(CustomColor customColor, byte alpha = 255)
@@ -53,53 +60,53 @@ public class Helpers
         }
     }
 
-    public static Color GetConsoleTextColor(ConsoleTextColor consoleTextColor)
+    public static Color GetRichTextColor(RichTextColor richTextColor)
     {
-        switch (consoleTextColor)
+        switch (richTextColor)
         {
-            case ConsoleTextColor.Aqua:
+            case RichTextColor.Aqua:
                 return Color.cyan;
-            case ConsoleTextColor.Black:
+            case RichTextColor.Black:
                 return Color.black;
-            case ConsoleTextColor.Blue:
+            case RichTextColor.Blue:
                 return Color.blue;
-            case ConsoleTextColor.Brown:
+            case RichTextColor.Brown:
                 return new Color32(165, 42, 42, 255);
-            case ConsoleTextColor.Cyan:
+            case RichTextColor.Cyan:
                 return Color.cyan;
-            case ConsoleTextColor.Darkblue:
+            case RichTextColor.Darkblue:
                 return new Color32(0, 0, 160, 255);
-            case ConsoleTextColor.Fuchsia:
+            case RichTextColor.Fuchsia:
                 return Color.magenta;
-            case ConsoleTextColor.Green:
+            case RichTextColor.Green:
                 return Color.green;
-            case ConsoleTextColor.Grey:
+            case RichTextColor.Grey:
                 return Color.grey;
-            case ConsoleTextColor.Lightblue:
+            case RichTextColor.Lightblue:
                 return new Color32(173, 216, 230, 255);
-            case ConsoleTextColor.Lime:
+            case RichTextColor.Lime:
                 return new Color32(0, 255, 0, 255);
-            case ConsoleTextColor.Magenta:
+            case RichTextColor.Magenta:
                 return Color.magenta;
-            case ConsoleTextColor.Maroon:
+            case RichTextColor.Maroon:
                 return new Color32(128, 0, 0, 255);
-            case ConsoleTextColor.Navy:
+            case RichTextColor.Navy:
                 return new Color32(0, 0, 128, 255);
-            case ConsoleTextColor.Olive:
+            case RichTextColor.Olive:
                 return new Color32(128, 128, 0, 255);
-            case ConsoleTextColor.Orange:
+            case RichTextColor.Orange:
                 return new Color32(255, 165, 0, 255);
-            case ConsoleTextColor.Purple:
+            case RichTextColor.Purple:
                 return new Color32(128, 0, 128, 255);
-            case ConsoleTextColor.Red:
+            case RichTextColor.Red:
                 return Color.red;
-            case ConsoleTextColor.Silver:
+            case RichTextColor.Silver:
                 return new Color32(192, 192, 192, 255);
-            case ConsoleTextColor.Teal:
+            case RichTextColor.Teal:
                 return new Color32(0, 128, 128, 255);
-            case ConsoleTextColor.White:
+            case RichTextColor.White:
                 return Color.white;
-            case ConsoleTextColor.Yellow:
+            case RichTextColor.Yellow:
                 return Color.yellow;
             default:
                 return Color.black;
@@ -108,14 +115,17 @@ public class Helpers
 
     public static Texture2D MakeTexture(int width, int height, Color color)
     {
-        Color[] pix = new Color[width * height];
-        for (int i = 0; i < pix.Length; ++i)
+        Color[] pixels = new Color[width * height];
+
+        for (var i = 0; i < pixels.Length; i++)
         {
-            pix[i] = color;
+            pixels[i] = color;
         }
+
         Texture2D result = new Texture2D(width, height);
-        result.SetPixels(pix);
+        result.SetPixels(pixels);
         result.Apply();
+
         return result;
     }
 }
@@ -345,13 +355,13 @@ public static class StringExtensions
         return false;
     }
 
-    public static int ContainsAmount(this string value, char item)
+    public static int ContainsAmountOf(this string value, char @char)
     {
         int times = 0;
 
         foreach (char c in value)
         {
-            if (c == item)
+            if (c == @char)
             {
                 times++;
             }
@@ -498,6 +508,25 @@ public static class StringExtensions
         return list.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
     }
 
+    public static string[] SplitAllNonWrapped(this string text, char splitChar, char[] wrapChars)
+    {
+        List<string> list = new List<string>();
+        string[] split = text.Split(wrapChars);
+        for (int i = 0; i < split.Length; i++)
+        {
+            if (i % 2 == 0)
+            {
+                list.AddRange(split[i].Split(splitChar));
+            }
+            else
+            {
+                list.Add(split[i]);
+            }
+        }
+
+        return list.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+    }
+
     public static string GetFirstWord(this string text)
     {
         string textTrimmed = text.Trim();
@@ -518,10 +547,14 @@ public static class TextEditorExtensions
         return textEditor.cursorIndex;
     }
 
-    public static void SetCaretIndex(this TextEditor textEditor, int index)
+    public static void SetCaretIndex(this TextEditor textEditor, int index, bool selectNone = true)
     {
         textEditor.cursorIndex = index;
-        textEditor.SelectNone();
+
+        if (selectNone)
+        {
+            textEditor.SelectNone();
+        }
     }
 }
 
@@ -717,5 +750,93 @@ public static class GameObjectExtensions
             default:
                 throw new ArgumentException($"Attribute '{attributeName}' not found");
         }
+    }
+}
+
+public static class Texture2DExtensions
+{
+    public static void FillWithColor(this Texture2D texture2D, Color color)
+    {
+        Color[] colors = new Color[texture2D.width * texture2D.height];
+
+        for (int i = 0; i < colors.Length; i++)
+        {
+            colors[i] = color;
+        }
+
+        texture2D.SetPixels(colors);
+        texture2D.Apply();
+    }
+
+    public static void CreateBorders(this Texture2D texture2D, int borderWidth, Color borderColor)
+    {
+        Color[] pixels = texture2D.GetPixels();
+
+        for (int x = 0; x < texture2D.width; x++)
+        {
+            for (int y = 0; y < texture2D.height; y++)
+            {
+                if (x < borderWidth || x >= texture2D.width - borderWidth || y < borderWidth || y >= texture2D.height - borderWidth)
+                {
+                    pixels[y * texture2D.width + x] = borderColor;
+                }
+            }
+        }
+
+        texture2D.SetPixels(pixels);
+        texture2D.Apply();
+    }
+}
+
+public static class GUIExtensions
+{
+    /// <summary>
+    /// Create a bordered box.
+    /// </summary>
+    /// <returns>Content part's Rect.</returns>
+    public static Rect BorderedBox(Rect position, string text, GUIStyle style, float borderSize, GUIStyle borderStyle = null, BorderDirection borderDirection = BorderDirection.All)
+    {
+        if (borderStyle == null)
+        {
+            borderStyle = new GUIStyle() { normal = new GUIStyleState() { background = Texture2D.whiteTexture } };
+        }
+
+        Rect mainBoxRect = new Rect(
+            borderDirection.HasFlag(BorderDirection.Left) ? position.x + borderSize : position.x,
+            borderDirection.HasFlag(BorderDirection.Top) ? position.y + borderSize : position.y,
+            borderDirection.HasFlag(BorderDirection.Left | BorderDirection.Right) ? position.width - borderSize * 2
+            : borderDirection.HasFlag(BorderDirection.Left) || borderDirection.HasFlag(BorderDirection.Right) ? position.width - borderSize : position.width,
+            borderDirection.HasFlag(BorderDirection.Top | BorderDirection.Bottom) ? position.height - borderSize * 2
+            : borderDirection.HasFlag(BorderDirection.Top) || borderDirection.HasFlag(BorderDirection.Bottom) ? position.height - borderSize : position.height
+            );
+
+        // Main box
+        GUI.Box(mainBoxRect, text, style);
+
+        if (borderDirection.HasFlag(BorderDirection.Top))
+        {
+            // Top border
+            GUI.Box(new Rect(position.x + borderSize, position.y, position.width - borderSize * 2, borderSize), string.Empty, borderStyle);
+        }
+
+        if (borderDirection.HasFlag(BorderDirection.Left))
+        {
+            // Left border
+            GUI.Box(new Rect(position.x, position.y, borderSize, position.height), string.Empty, borderStyle);
+        }
+
+        if (borderDirection.HasFlag(BorderDirection.Bottom))
+        {
+            // Bottom border
+            GUI.Box(new Rect(position.x + borderSize, position.y + position.height - borderSize, position.width - borderSize * 2, borderSize), string.Empty, borderStyle);
+        }
+
+        if (borderDirection.HasFlag(BorderDirection.Right))
+        {
+            // Right border
+            GUI.Box(new Rect(position.width - borderSize, position.y, borderSize, position.height), string.Empty, borderStyle);
+        }
+
+        return mainBoxRect;
     }
 }
