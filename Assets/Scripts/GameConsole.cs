@@ -42,7 +42,7 @@ public class GameConsole : MonoBehaviour
     [SerializeField] private float inputBoxBorderBackgroundColorAlpha = 1f;
 
     #region Boring variables
-    private readonly float canRemoveWithBackspaceAfterTime = 0.2f;
+    private readonly float canRemoveWrappersWithBackspaceAfterTime = 0.2f;
     private readonly float canScrollSuggestionsAfterTime = 0.2f;
     private readonly float canCompleteSuggestionAfterTime = 0.2f;
     private readonly float dontShowSuggestionsForTime = 0.2f;
@@ -606,7 +606,7 @@ public class GameConsole : MonoBehaviour
     readonly int textFieldMarginRight = 20;
 
     int previousInputsCount = 0;
-    bool canRemoveWithBackspace = true;
+    bool canRemoveWrappersWithBackspace = true;
     bool showSuggestions = true;
     int currentSuggestionIndex = 0;
     int currentInputHistoryIndex = 0;
@@ -644,7 +644,7 @@ public class GameConsole : MonoBehaviour
         
         if (Event.current.isKey && Event.current.keyCode == KeyCode.Backspace)
         {
-            if (canRemoveWithBackspace)
+            if (canRemoveWrappersWithBackspace)
             {
                 int caretIndex = textEditor.GetCaretIndex();
 
@@ -656,11 +656,11 @@ public class GameConsole : MonoBehaviour
                         input = input.Remove(caretIndex - 1, 2);
                         textEditor.SetCaretIndex(caretIndex - 1);
                         Event.current.keyCode = KeyCode.None;
-                        StartCoroutine(CanRemoveWithBackspaceAfter(canRemoveWithBackspaceAfterTime));
                     }
                 }
             }
 
+            StartCoroutine(CanRemoveWrappersWithBackspaceAfter(canRemoveWrappersWithBackspaceAfterTime));
             dontAddWrappers = true;
         }
 
@@ -1020,19 +1020,19 @@ public class GameConsole : MonoBehaviour
 
     #region IEnumerators
     /// <summary>
-    /// Used to set small delay to suggestion showing (since OnGui() is called many times per frame)
+    /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
-    private IEnumerator CanRemoveWithBackspaceAfter(float seconds)
+    private IEnumerator CanRemoveWrappersWithBackspaceAfter(float seconds)
     {
-        canRemoveWithBackspace = false;
+        canRemoveWrappersWithBackspace = false;
 
         yield return new WaitForSeconds(seconds);
 
-        canRemoveWithBackspace = true;
+        canRemoveWrappersWithBackspace = true;
     }
 
     /// <summary>
-    /// Used to set small delay to suggestion showing (since OnGui() is called many times per frame)
+    /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
     private IEnumerator DontShowSuggestionsFor(float seconds)
     {
@@ -1044,7 +1044,7 @@ public class GameConsole : MonoBehaviour
     }
 
     /// <summary>
-    /// Used to set small delay to suggestion scrolling (since OnGui() is called many times per frame)
+    /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
     private IEnumerator CanScrollSuggestionsAfter(float seconds)
     {
@@ -1056,7 +1056,7 @@ public class GameConsole : MonoBehaviour
     }
 
     /// <summary>
-    /// Used to set small delay to suggestion completion (since OnGui() is called many times per frame)
+    /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
     private IEnumerator CanCompleteSuggestionAfter(float seconds)
     {
@@ -1068,7 +1068,7 @@ public class GameConsole : MonoBehaviour
     }
 
     /// <summary>
-    /// Used to set small delay to allowing user close the opened console (since OnGui() is called many times per frame)
+    /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
     private IEnumerator CanDeactivateAfter(float seconds)
     {
