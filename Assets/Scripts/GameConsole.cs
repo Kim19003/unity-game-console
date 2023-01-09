@@ -1,13 +1,14 @@
-﻿using System;
+﻿using Assets.Scripts.Attributes;
+using Assets.Scripts.Extensions;
+using Assets.Scripts.Other;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using UnityEditor.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UIElements;
 using Color = UnityEngine.Color;
+using GameConsoleConvert = Assets.Scripts.Other.GameConsoleConvert;
 using TextEditor = UnityEngine.TextEditor;
 
 public class GameConsole : MonoBehaviour
@@ -42,6 +43,7 @@ public class GameConsole : MonoBehaviour
     [SerializeField] private float inputBoxBorderBackgroundColorAlpha = 1f;
 
     #region Boring variables
+    private readonly float canDeactivateConsoleAfterTime = 0.2f;
     private readonly float canRemoveWrappersWithBackspaceAfterTime = 0.2f;
     private readonly float canScrollSuggestionsAfterTime = 0.2f;
     private readonly float canCompleteSuggestionAfterTime = 0.2f;
@@ -68,11 +70,13 @@ public class GameConsole : MonoBehaviour
     GameConsoleCommand get_admitted_attribute_names;
     GameConsoleCommand get_command_ids;
 
+    GameConsoleCommand<string> set_test_object_position;
+
     private string input = string.Empty;
     
     private bool activated = false;
     private bool justActivated = false;
-    private bool canDeactivate = false;
+    private bool canDeactivateConsole = false;
 
     readonly TimedUnityAction timedAction = new TimedUnityAction();
     Action currentTimedAction = null;
@@ -325,22 +329,15 @@ public class GameConsole : MonoBehaviour
 
             if (gameObject != null)
             {
-                try
+                GameConsoleType<bool> gameConsoleType = GameConsoleConvert.ToBool(isTrue);
+                if (gameConsoleType != null)
                 {
-                    bool value = Convert.ToBool(isTrue);
-                    gameObject.SetActive(value);
-                    Print($"{gameObject.transform.name} is now {(value ? "activated" : "deactivated")}", ConsoleOutputType.Explanation);
+                    gameObject.SetActive(gameConsoleType.Value);
+                    Print($"{gameObject.transform.name} is now {(gameConsoleType.Value ? "activated" : "deactivated")}", ConsoleOutputType.Explanation);
                 }
-                catch (Exception ex)
+                else
                 {
-                    if (ex is ArgumentNullException || ex is FormatException)
-                    {
-                        PrintIncorrectTypeError("Argument", nameof(isTrue));
-                    }
-                    else
-                    {
-                        PrintWrongUsageOfCommandError(set_attribute_of.CommandId);
-                    }
+                    PrintIncorrectTypeError("Argument", nameof(isTrue));
                 }
             }
             else
@@ -352,7 +349,7 @@ public class GameConsole : MonoBehaviour
         get_attribute_of = new GameConsoleCommand<string, string>(
             $"{nameof(get_attribute_of)}",
             "Find a game object by name and get it's attribute value",
-            $"{nameof(get_attribute_of)} <str: gameObjectName> <str: gameObjectAttributeName>",
+            $"{nameof(get_attribute_of)} <str: gameObjectName> <str: attributeName>",
             $"{nameof(get_attribute_of)} \"Player\" \"position\"");
         get_attribute_of.Action = (gameObjectName, attributeName) =>
         {
@@ -360,21 +357,14 @@ public class GameConsole : MonoBehaviour
 
             if (gameObject != null)
             {
-                try
+                (GetterResult Result, string Value) = gameObject.GetAttributeValue(attributeName);
+                if (Result == GetterResult.Successful)
                 {
-                    string attributeValue = gameObject.GetAttributeValue(attributeName);
-                    Print($"{gameObject.transform.name}'s {attributeName} is {attributeValue}", ConsoleOutputType.Explanation);
+                    Print($"{gameObject.transform.name}'s {attributeName} is {Value}", ConsoleOutputType.Explanation);
                 }
-                catch (Exception ex)
+                else
                 {
-                    if (ex is ArgumentException)
-                    {
-                        PrintNotFoundError("Attribute", attributeName);
-                    }
-                    else
-                    {
-                        PrintWrongUsageOfCommandError(set_attribute_of.CommandId);
-                    }
+                    PrintNotFoundError("Attribute", attributeName);
                 }
             }
             else
@@ -386,33 +376,26 @@ public class GameConsole : MonoBehaviour
         set_attribute_of = new GameConsoleCommand<string, string, string>(
             $"{nameof(set_attribute_of)}",
             "Find a game object by name and set it's attribute value",
-            $"{nameof(set_attribute_of)} <str: gameObjectName> <str: gameObjectAttributeName> <obj: gameObjectAttributeValue>",
-            $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1.0, 1.0)\"");
-        set_attribute_of.Action = (gameObjectName, gameObjectAttributeName, gameObjectAttributeValue) =>
+            $"{nameof(set_attribute_of)} <str: gameObjectName> <str: attributeName> <obj: attributeValue>",
+            $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\"");
+        set_attribute_of.Action = (gameObjectName, attributeName, attributeValue) =>
         {
             GameObject gameObject = GameObject.Find(gameObjectName);
 
             if (gameObject != null)
             {
-                try
+                SetterResult setterResult = gameObject.SetAttributeValue(attributeName, attributeValue);
+                switch (setterResult)
                 {
-                    gameObject.SetAttributeValue(gameObjectAttributeName, gameObjectAttributeValue);
-                    Print($"{gameObject.transform.name}'s {gameObjectAttributeName} is now {gameObject.GetAttributeValue(gameObjectAttributeName)}", ConsoleOutputType.Explanation);
-                }
-                catch (Exception ex)
-                {
-                    if (ex is ArgumentNullException || ex is FormatException)
-                    {
-                        PrintIncorrectTypeError("Argument", nameof(gameObjectAttributeValue));
-                    }
-                    else if (ex is ArgumentException)
-                    {
-                        PrintNotFoundError("Attribute", gameObjectAttributeName);
-                    }
-                    else
-                    {
-                        PrintWrongUsageOfCommandError(set_attribute_of.CommandId);
-                    }
+                    case SetterResult.Successful:
+                        Print($"{gameObject.transform.name}'s {attributeName} is now {gameObject.GetAttributeValue(attributeName)}", ConsoleOutputType.Explanation);
+                        break;
+                    case SetterResult.ValueNotAllowed:
+                        PrintIncorrectTypeError("Argument", nameof(attributeValue));
+                        break;
+                    case SetterResult.TargetNotFound:
+                        PrintNotFoundError("Attribute", attributeName);
+                        break;
                 }
             }
             else
@@ -447,6 +430,43 @@ public class GameConsole : MonoBehaviour
             }
         };
 
+        set_test_object_position = new GameConsoleCommand<string>(
+            $"{nameof(set_test_object_position)}",
+            "Set test object position",
+            $"{nameof(set_test_object_position)} <v3: position>",
+            $"{nameof(set_test_object_position)} \"(1, 1, 0)\"");
+        set_test_object_position.Action = (position) =>
+        {
+            GameObject testObject = GameObject.Find("Test");
+
+            if (testObject != null)
+            {
+                TestObject testObjectScript = testObject.GetComponent<TestObject>();
+
+                if (testObjectScript != null)
+                {
+                    GameConsoleType<Vector3> gameConsoleType = GameConsoleConvert.ToVector3(position);
+                    if (gameConsoleType != null)
+                    {
+                        testObjectScript.SetPosition(gameConsoleType.Value);
+                        Print($"{testObject.transform.name}'s position is now {testObject.transform.position}", ConsoleOutputType.Explanation);
+                    }
+                    else
+                    {
+                        PrintIncorrectTypeError("Argument", nameof(position));
+                    }
+                }
+                else
+                {
+                    PrintNotFoundError("Script", "TestObject");
+                }
+            }
+            else
+            {
+                PrintNotFoundError("Game object", "Test");
+            }
+        };
+
         commands.AddRange(new List<object>()
         {
             help,
@@ -463,14 +483,10 @@ public class GameConsole : MonoBehaviour
             set_attribute_of,
             get_admitted_attribute_names,
             get_command_ids,
+
+            set_test_object_position,
         });
         #endregion
-    }
-
-    #region Start, Update and FixedUpdate methods
-    void Start()
-    {
-        
     }
 
     private void Update()
@@ -481,7 +497,7 @@ public class GameConsole : MonoBehaviour
             {
                 activated = true;
                 justActivated = true;
-                StartCoroutine(CanDeactivateAfter(0.2f));
+                StartCoroutine(CanDeactivateConsoleAfter(canDeactivateConsoleAfterTime));
             }
         }
 
@@ -498,12 +514,6 @@ public class GameConsole : MonoBehaviour
             }
         }
     }
-
-    private void FixedUpdate()
-    {
-
-    }
-    #endregion
 
     private Vector2 scrollViewScrollPosition;
     private Rect scrollViewViewRect;
@@ -528,11 +538,11 @@ public class GameConsole : MonoBehaviour
                 }
                 break;
             case KeyCode keyCode when keyCode == activateKey:
-                if (canDeactivate)
+                if (canDeactivateConsole)
                 {
                     input = string.Empty;
                     activated = false;
-                    canDeactivate = false;
+                    canDeactivateConsole = false;
                 }
                 break;
         }
@@ -835,21 +845,10 @@ public class GameConsole : MonoBehaviour
                 if (selectedTextBeforeTextFieldUpdate.Length > 0)
                 {
                     int selectIndex = textEditor.selectIndex;
-                    int caretIndex = textEditor.GetCaretIndex();
 
                     if (selectIndex > 0)
                     {
-                        char foundChar = '\0';
-
-                        switch (input.GetCharAt(selectIndex - 1))
-                        {
-                            case '"':
-                                foundChar = '"';
-                                break;
-                            case '\'':
-                                foundChar = '\'';
-                                break;
-                        }
+                        char foundChar = input.TryGetWrapperAt(selectIndex - 1, new char[] { '"', '\'' });
 
                         if (foundChar != '\0')
                         {
@@ -866,17 +865,7 @@ public class GameConsole : MonoBehaviour
 
                     if (caretIndex > 0)
                     {
-                        char foundChar = '\0';
-
-                        switch (input.GetCharAt(caretIndex - 1))
-                        {
-                            case '"':
-                                foundChar = '"';
-                                break;
-                            case '\'':
-                                foundChar = '\'';
-                                break;
-                        }
+                        char foundChar = input.TryGetWrapperAt(caretIndex - 1, new char[] { '"', '\'' });
 
                         if (foundChar != '\0')
                         {
@@ -900,6 +889,7 @@ public class GameConsole : MonoBehaviour
         }
     }
 
+    [RelatedTo(nameof(HandleInputField), RelationTargetType.Method)]
     private void GetInputSuggestions(string input, out HashSet<string> inputSuggestions)
     {
         inputSuggestions = new HashSet<string>();
@@ -915,10 +905,7 @@ public class GameConsole : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Handle the input and execute the command.
-    /// </summary>
-    /// <returns>True, if the input didn't contain any errors.</returns>
+    [RelatedTo(nameof(OnGUI), RelationTargetType.Method)]
     private bool HandleInput(string input)
     {
         inputs.Add(input);
@@ -1070,13 +1057,13 @@ public class GameConsole : MonoBehaviour
     /// <summary>
     /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
-    private IEnumerator CanDeactivateAfter(float seconds)
+    private IEnumerator CanDeactivateConsoleAfter(float seconds)
     {
-        canDeactivate = false;
+        canDeactivateConsole = false;
 
         yield return new WaitForSeconds(seconds);
 
-        canDeactivate = true;
+        canDeactivateConsole = true;
     }
     #endregion
 
