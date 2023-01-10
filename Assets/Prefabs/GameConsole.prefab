@@ -43,17 +43,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aff4a3b63d5d1834fac808cf946c1dfd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  activationKey: 27
   font: {fileID: 12800000, guid: a9df96cd00a9a214684058f9a509dd4e, type: 3}
-  activateKey: 27
   fontSize: 18
-  outputBoxHeight: 200
-  outputLabelHeight: 20
-  inputTextFieldHeight: 20
   defaultTextColor: {r: 1, g: 1, b: 1, a: 1}
   inputSuggestionTextColor: 8
   outputExplanationTextColor: 8
   outputWarningTextColor: 21
   outputErrorTextColor: 17
+  outputBoxHeight: 200
+  outputLabelHeight: 20
   outputBoxBackgroundTexture: {fileID: 2800000, guid: 61b46303984866e41ab5e860fffc8794,
     type: 3}
   outputBoxBackgroundColor: {r: 0, g: 0, b: 0, a: 1}
@@ -63,6 +62,7 @@ MonoBehaviour:
   outputBoxBorderSize: 2
   outputBoxBorderBackgroundColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   outputBoxBorderBackgroundColorAlpha: 1
+  inputTextFieldHeight: 20
   inputBoxBackgroundTexture: {fileID: 2800000, guid: e77b75625fdfda6438f71b07c0ccee7c,
     type: 3}
   inputBoxBackgroundColor: {r: 0, g: 0, b: 0, a: 1}

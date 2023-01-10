@@ -5,6 +5,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Color = UnityEngine.Color;
@@ -13,38 +14,42 @@ using TextEditor = UnityEngine.TextEditor;
 
 public class GameConsole : MonoBehaviour
 {
-    [SerializeField] private Font font;
-    [SerializeField] private KeyCode activateKey = KeyCode.Escape;
-    [SerializeField] private int fontSize = 16;
-    [SerializeField] private float outputBoxHeight = 200;
-    [SerializeField] private int outputLabelHeight = 20;
-    [SerializeField] private int inputTextFieldHeight = 20;
+    [Header("General")]
+    [SerializeField] private KeyCode activationKey = KeyCode.Escape;
 
+    [Header("Text")]
+    [SerializeField] private Font font;
+    [SerializeField] private int fontSize = 16;
     [SerializeField] private Color defaultTextColor = Color.white;
     [SerializeField] private RichTextColor inputSuggestionTextColor = RichTextColor.Grey;
     [SerializeField] private RichTextColor outputExplanationTextColor = RichTextColor.Grey;
     [SerializeField] private RichTextColor outputWarningTextColor = RichTextColor.Yellow;
     [SerializeField] private RichTextColor outputErrorTextColor = RichTextColor.Red;
-    
+
+    [Header("Output")]
+    [SerializeField] private float outputBoxHeight = 200;
+    [SerializeField] private int outputLabelHeight = 20;
     [SerializeField] private Texture2D outputBoxBackgroundTexture;
     [SerializeField] private Color outputBoxBackgroundColor = Color.black;
-    [SerializeField] private float outputBoxBackgroundColorAlpha = 0.5f;
+    [SerializeField] private float outputBoxBackgroundColorAlpha = 1f;
     [SerializeField] private Texture2D outputBoxBorderBackgroundTexture;
-    [SerializeField] private float outputBoxBorderSize = 0f;
+    [SerializeField] private float outputBoxBorderSize = 2f;
     [SerializeField] private Color outputBoxBorderBackgroundColor = Color.gray;
     [SerializeField] private float outputBoxBorderBackgroundColorAlpha = 1f;
 
+    [Header("Input")]
+    [SerializeField] private int inputTextFieldHeight = 20;
     [SerializeField] private Texture2D inputBoxBackgroundTexture;
     [SerializeField] private Color inputBoxBackgroundColor = Color.black;
-    [SerializeField] private float inputBoxBackgroundColorAlpha = 0.6f;
+    [SerializeField] private float inputBoxBackgroundColorAlpha = 1f;
     [SerializeField] private Texture2D inputBoxBorderBackgroundTexture;
-    [SerializeField] private float inputBoxBorderSize = 0f;
+    [SerializeField] private float inputBoxBorderSize = 2f;
     [SerializeField] private Color inputBoxBorderBackgroundColor = Color.gray;
     [SerializeField] private float inputBoxBorderBackgroundColorAlpha = 1f;
 
     #region Boring variables
-    private readonly float canDeactivateConsoleAfterTime = 0.2f;
-    private readonly float canRemoveWrappersWithBackspaceAfterTime = 0.2f;
+    private readonly float canDeactivateConsoleAfterTime = 0.7f;
+    private readonly float canRemoveWrappersWithBackspaceAfterTime = 0.3f;
     private readonly float canScrollSuggestionsAfterTime = 0.2f;
     private readonly float canCompleteSuggestionAfterTime = 0.2f;
     private readonly float dontShowSuggestionsForTime = 0.2f;
@@ -189,19 +194,14 @@ public class GameConsole : MonoBehaviour
             $"{nameof(help)}",
             "Show information about all available commands",
             $"{nameof(help)}",
-            $"{nameof(help)}");
+            new string[] { $"{nameof(help)}" });
         help.Action = () =>
         {
             foreach (GameConsoleCommandBase consoleCommand in commands.Cast<GameConsoleCommandBase>())
             {
                 string commandFormat = consoleCommand.CommandFormat.WrapAlreadyWrappedPartsWithTags("i", '<', '>').Replace($"{consoleCommand.CommandId}",
                     $"<b>{consoleCommand.CommandId}</b>");
-                string commandExample = string.Empty; //consoleCommand.CommandExample
-                //if (!string.IsNullOrEmpty(commandExample))
-                //{
-                //    commandExample = $"[example: {commandExample}]";
-                //}
-                Print($"{commandFormat} — {consoleCommand.CommandDescription}{(!string.IsNullOrEmpty(commandExample) ? " " + commandExample : string.Empty)}", ConsoleOutputType.Explanation);
+                Print($"{commandFormat} — {consoleCommand.CommandDescription}", ConsoleOutputType.Explanation);
             }
         };
 
@@ -209,7 +209,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(help_of)}",
             "Show information about a command",
             $"{nameof(help_of)} <str: commandId>",
-            $"{nameof(help_of)} \"{nameof(help)}\"");
+            new string[] { $"{nameof(help_of)} \"{nameof(help)}\"" });
         help_of.Action = (commandId) =>
         {
             GameConsoleCommandBase command = commands.Cast<GameConsoleCommandBase>().FirstOrDefault(c => c.CommandId == commandId);
@@ -219,7 +219,7 @@ public class GameConsole : MonoBehaviour
                 Print($"Id: <b>{command.CommandId}</b>", ConsoleOutputType.Explanation);
                 Print($"Description: {command.CommandDescription}", ConsoleOutputType.Explanation);
                 Print($"Format: {command.CommandFormat.WrapAlreadyWrappedPartsWithTags("i", '<', '>')}", ConsoleOutputType.Explanation);
-                Print($"Usage example: {command.CommandExample}", ConsoleOutputType.Explanation);
+                Print($"Usage example: {(!command.CommandExamples.IsNullOrEmpty() ? command.CommandExamples.GetRandomElement() : string.Empty)}", ConsoleOutputType.Explanation);
             }
             else
             {
@@ -231,7 +231,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(clear)}",
             "Clear the console",
             $"{nameof(clear)}",
-            $"{nameof(clear)}");
+            new string[] { $"{nameof(clear)}" });
         clear.Action = () =>
         {
             Clear();
@@ -241,7 +241,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(print)}",
             "Print text to the console",
             $"{nameof(print)} <str: text>",
-            $"{nameof(print)} \"Hello world!\"");
+            new string[] { $"{nameof(print)} \"Hello world!\"" });
         print.Action = (text) =>
         {
             Print(text, ConsoleOutputType.Explanation);
@@ -251,7 +251,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(quit)}",
             "Quit the game",
             $"{nameof(quit)}",
-            $"{nameof(quit)}");
+            new string[] { $"{nameof(quit)}" });
         quit.Action = () =>
         {
             Application.Quit();
@@ -261,7 +261,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(load_scene)}",
             "Load specific scene",
             $"{nameof(load_scene)} <str: sceneName>",
-            $"{nameof(load_scene)} \"SampleScene\"");
+            new string[] { $"{nameof(load_scene)} \"SampleScene\"" });
         load_scene.Action = (sceneName) =>
         {
             int sceneBuildIndex = SceneUtility.GetBuildIndexByScenePath(sceneName);
@@ -281,7 +281,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(reload)}",
             "Reload the current scene",
             $"{nameof(reload)}",
-            $"{nameof(reload)}");
+            new string[] { $"{nameof(reload)}" });
         reload.Action = () =>
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
@@ -292,18 +292,18 @@ public class GameConsole : MonoBehaviour
             $"{nameof(fullscreen)}",
             "Switch to the fullscreen",
             $"{nameof(fullscreen)}",
-            $"{nameof(fullscreen)}");
+            new string[] { $"{nameof(fullscreen)}" });
         fullscreen.Action = () =>
         {
             Screen.fullScreen = !Screen.fullScreen;
-            Print($"Fullscreen: {!Screen.fullScreen}", ConsoleOutputType.Explanation);
+            Print($"Fullscreen: {Screen.fullScreen}", ConsoleOutputType.Explanation);
         };
 
         destroy = new GameConsoleCommand<string>(
             $"{nameof(destroy)}",
             "Destroy specific game object",
             $"{nameof(destroy)} <str: gameObjectName>",
-            $"{nameof(destroy)} \"Player\"");
+            new string[] { $"{nameof(destroy)} \"Player\"" });
         destroy.Action = (gameObjectName) =>
         {
             GameObject gameObject = GameObject.Find(gameObjectName);
@@ -322,7 +322,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(set_active)}",
             "Activate or deactivate specific game object",
             $"{nameof(set_active)} <str: gameObjectName> <bool: isTrue>",
-            $"{nameof(set_active)} \"Player\" false");
+            new string[] { $"{nameof(set_active)} \"Player\" false" });
         set_active.Action = (gameObjectName, isTrue) =>
         {
             GameObject gameObject = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(go => go.name == gameObjectName);
@@ -350,7 +350,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(get_attribute_of)}",
             "Find a game object by name and get it's attribute value",
             $"{nameof(get_attribute_of)} <str: gameObjectName> <str: attributeName>",
-            $"{nameof(get_attribute_of)} \"Player\" \"position\"");
+            new string[] { $"{nameof(get_attribute_of)} \"Player\" \"position\"" });
         get_attribute_of.Action = (gameObjectName, attributeName) =>
         {
             GameObject gameObject = GameObject.Find(gameObjectName);
@@ -377,7 +377,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(set_attribute_of)}",
             "Find a game object by name and set it's attribute value",
             $"{nameof(set_attribute_of)} <str: gameObjectName> <str: attributeName> <obj: attributeValue>",
-            $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\"");
+            new string[] { $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\"" });
         set_attribute_of.Action = (gameObjectName, attributeName, attributeValue) =>
         {
             GameObject gameObject = GameObject.Find(gameObjectName);
@@ -408,7 +408,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(get_admitted_attribute_names)}",
             "Get the GameObject type's admitted attribute names",
             $"{nameof(get_admitted_attribute_names)}",
-            $"{nameof(get_admitted_attribute_names)}");
+            new string[] { $"{nameof(get_admitted_attribute_names)}" });
         get_admitted_attribute_names.Action = () =>
         {
             foreach (string attributeName in GameObjectExtensions.AttributeNames)
@@ -421,7 +421,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(get_command_ids)}",
             "Get all command ids",
             $"{nameof(get_command_ids)}",
-            $"{nameof(get_command_ids)}");
+            new string[] { $"{nameof(get_command_ids)}" });
         get_command_ids.Action = () =>
         {
             foreach (GameConsoleCommandBase command in commands.Cast<GameConsoleCommandBase>().ToList())
@@ -434,7 +434,7 @@ public class GameConsole : MonoBehaviour
             $"{nameof(set_test_object_position)}",
             "Set test object position",
             $"{nameof(set_test_object_position)} <v3: position>",
-            $"{nameof(set_test_object_position)} \"(1, 1, 0)\"");
+            new string[] { $"{nameof(set_test_object_position)} \"(1, 1, 0)\"" });
         set_test_object_position.Action = (position) =>
         {
             GameObject testObject = GameObject.Find("Test");
@@ -491,13 +491,13 @@ public class GameConsole : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(activateKey))
+        if (Input.GetKeyDown(activationKey))
         {
             if (!activated)
             {
                 activated = true;
                 justActivated = true;
-                StartCoroutine(CanDeactivateConsoleAfter(canDeactivateConsoleAfterTime));
+                canDeactivateConsole = false;
             }
         }
 
@@ -512,6 +512,28 @@ public class GameConsole : MonoBehaviour
                 currentTimedAction = null;
                 currentTimedActionInterval = 0;
             }
+        }
+
+        // Coroutines
+        if (!canRemoveWrappersWithBackspace && !canRemoveWrappersWithBackspaceAfterHasStarted)
+        {
+            StartCoroutine(CanRemoveWrappersWithBackspaceAfter(canRemoveWrappersWithBackspaceAfterTime));
+        }
+        if (!showSuggestions && !dontShowSuggestionsForHasStarted)
+        {
+            StartCoroutine(DontShowSuggestionsFor(dontShowSuggestionsForTime));
+        }
+        if (!canScrollSuggestions && !canScrollSuggestionsAfterHasStarted)
+        {
+            StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+        }
+        if (!canCompleteSuggestion && !canCompleteSuggestionAfterHasStarted)
+        {
+            StartCoroutine(CanCompleteSuggestionAfter(canCompleteSuggestionAfterTime));
+        }
+        if (!canDeactivateConsole && !canDeactivateConsoleAfterHasStarted)
+        {
+            StartCoroutine(CanDeactivateConsoleAfter(canDeactivateConsoleAfterTime));
         }
     }
 
@@ -537,7 +559,7 @@ public class GameConsole : MonoBehaviour
                     input = string.Empty;
                 }
                 break;
-            case KeyCode keyCode when keyCode == activateKey:
+            case KeyCode keyCode when keyCode == activationKey:
                 if (canDeactivateConsole)
                 {
                     input = string.Empty;
@@ -650,28 +672,47 @@ public class GameConsole : MonoBehaviour
             previousInputsCount = inputs.Count;
         }
 
+        // Handle wrapper removal logic
+        int caretIndex = textEditor.GetCaretIndex();
+
+        bool caretIndexSurroundedWithWrappers = false;
+        bool caretIndexSurroundedWithTooManyWrappers = false;
         bool dontAddWrappers = false;
-        
-        if (Event.current.isKey && Event.current.keyCode == KeyCode.Backspace)
+        bool pressedBackspace = false;
+
+        if (caretIndex > 0 && (input.GetCharAt(caretIndex - 1) == '\"' && input.GetCharAt(caretIndex) == '\"'
+            || input.GetCharAt(caretIndex - 1) == '\'' && input.GetCharAt(caretIndex) == '\''))
         {
-            if (canRemoveWrappersWithBackspace)
-            {
-                int caretIndex = textEditor.GetCaretIndex();
-
-                if (caretIndex > 0)
-                {
-                    if (input.GetCharAt(caretIndex - 1) == '\"' && input.GetCharAt(caretIndex) == '\"'
-                        || input.GetCharAt(caretIndex - 1) == '\'' && input.GetCharAt(caretIndex) == '\'')
-                    {
-                        input = input.Remove(caretIndex - 1, 2);
-                        textEditor.SetCaretIndex(caretIndex - 1);
-                        Event.current.keyCode = KeyCode.None;
-                    }
-                }
-            }
-
-            StartCoroutine(CanRemoveWrappersWithBackspaceAfter(canRemoveWrappersWithBackspaceAfterTime));
+            caretIndexSurroundedWithWrappers = true;
             dontAddWrappers = true;
+
+            if (input.GetCharAt(caretIndex - 2) == '\"' || input.GetCharAt(caretIndex + 1) == '\"'
+                || input.GetCharAt(caretIndex - 2) == '\'' || input.GetCharAt(caretIndex + 1) == '\'')
+            {
+                caretIndexSurroundedWithTooManyWrappers = true;
+            }
+        }
+        // ----------
+
+        if (Event.current.isKey)
+        {
+            if (Event.current.keyCode == KeyCode.Backspace)
+            {
+                if (canRemoveWrappersWithBackspace && caretIndexSurroundedWithWrappers && !caretIndexSurroundedWithTooManyWrappers)
+                {
+                    input = input.Remove(caretIndex - 1, 2);
+                    textEditor.SetCaretIndex(caretIndex - 1);
+                    Event.current.keyCode = KeyCode.None;
+                }
+
+                dontAddWrappers = true;
+                canRemoveWrappersWithBackspace = false;
+                pressedBackspace = true;
+            }
+            else if (Event.current.control && (Event.current.keyCode == KeyCode.X || Event.current.keyCode == KeyCode.V))
+            {
+                dontAddWrappers = true;
+            }
         }
 
         if (string.IsNullOrEmpty(input))
@@ -698,7 +739,7 @@ public class GameConsole : MonoBehaviour
                                 inputSuggestion = string.Empty;
                                 showInputHistorySuggestion = false;
                                 dontAddWrappers = true;
-                                StartCoroutine(DontShowSuggestionsFor(dontShowSuggestionsForTime));
+                                showSuggestions = false;
                             }
                         }
                         break;
@@ -715,7 +756,7 @@ public class GameConsole : MonoBehaviour
                             currentInputHistoryIndex--;
                             inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex, true) ?? string.Empty;
                             showInputHistorySuggestion = true;
-                            StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+                            canScrollSuggestions = false;
                         }
                         break;
                     case KeyCode.DownArrow:
@@ -731,7 +772,7 @@ public class GameConsole : MonoBehaviour
                             currentInputHistoryIndex++;
                             inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex, true) ?? string.Empty;
                             showInputHistorySuggestion = true;
-                            StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+                            canScrollSuggestions = false;
                         }
                         break;
                 }
@@ -768,7 +809,7 @@ public class GameConsole : MonoBehaviour
                                     else
                                     {
                                         input = firstPartOfSuggestion;
-                                        StartCoroutine(CanCompleteSuggestionAfter(canCompleteSuggestionAfterTime));
+                                        canCompleteSuggestion = false;
                                     }
                                     textEditor.SetCaretIndex(input.Length);
                                     currentSuggestionIndex = 0;
@@ -785,7 +826,7 @@ public class GameConsole : MonoBehaviour
 
                                 currentSuggestionIndex--;
                                 currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
-                                StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+                                canScrollSuggestions = false;
                             }
                             break;
                         case KeyCode.DownArrow:
@@ -796,7 +837,7 @@ public class GameConsole : MonoBehaviour
 
                                 currentSuggestionIndex++;
                                 currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
-                                StartCoroutine(CanScrollSuggestionsAfter(canScrollSuggestionsAfterTime));
+                                canScrollSuggestions = false;
                             }
                             break;
                     }
@@ -840,8 +881,11 @@ public class GameConsole : MonoBehaviour
         // On input change
         if (input != previousInput)
         {
+            caretIndex = textEditor.GetCaretIndex();
+
             if (!dontAddWrappers)
             {
+                // Handle wrapper addition logic
                 if (selectedTextBeforeTextFieldUpdate.Length > 0)
                 {
                     int selectIndex = textEditor.selectIndex;
@@ -859,19 +903,22 @@ public class GameConsole : MonoBehaviour
                         }
                     }
                 }
-                else
+                else if (caretIndex > 0)
                 {
-                    int caretIndex = textEditor.GetCaretIndex();
+                    char foundChar = input.TryGetWrapperAt(caretIndex - 1, new char[] { '"', '\'' });
 
-                    if (caretIndex > 0)
+                    if (foundChar != '\0')
                     {
-                        char foundChar = input.TryGetWrapperAt(caretIndex - 1, new char[] { '"', '\'' });
-
-                        if (foundChar != '\0')
-                        {
-                            input = input.Remove(caretIndex - 1, 1).AddWrappersTo(caretIndex - 1, foundChar);
-                        }
+                        input = input.Remove(caretIndex - 1, 1).AddWrappersTo(caretIndex - 1, foundChar);
                     }
+                }
+                // ----------
+            }
+            else if (caretIndex > 0 && caretIndexSurroundedWithWrappers && !pressedBackspace)
+            {
+                if (input.TryGetWrapperAt(caretIndex - 1, new char[] { '"', '\'' }) != '\0')
+                {
+                    input = input.Remove(caretIndex - 1, 1);
                 }
             }
 
@@ -889,20 +936,32 @@ public class GameConsole : MonoBehaviour
         }
     }
 
+    HashSet<string> previousInputSuggestions;
+
     [RelatedTo(nameof(HandleInputField), RelationTargetType.Method)]
     private void GetInputSuggestions(string input, out HashSet<string> inputSuggestions)
     {
         inputSuggestions = new HashSet<string>();
-        
-        try
+
+        foreach (var gameConsoleCommand in commands.Cast<GameConsoleCommandBase>().ToList())
         {
-            List<string> _inputSuggestions = commands.Cast<GameConsoleCommandBase>().ToList()
-                .Where(c => c.CommandFormat.ToLower().StartsWith(input.ToLower())).Select(c => c.CommandFormat).ToList();
-            inputSuggestions = new HashSet<string>(_inputSuggestions);
+            string suggestion;
+            if (previousInputSuggestions != null && previousInputSuggestions.Any(s => s.StartsWith(gameConsoleCommand.CommandId)))
+            {
+                suggestion = previousInputSuggestions.FirstOrDefault(s => s.StartsWith(gameConsoleCommand.CommandId));
+            }
+            else
+            {
+                suggestion = !gameConsoleCommand.CommandExamples.IsNullOrEmpty() ? gameConsoleCommand.CommandExamples.GetRandomElement() : gameConsoleCommand.CommandFormat;
+            }
+
+            if (suggestion.ToLower().StartsWith(input.ToLower()))
+            {
+                inputSuggestions.Add(suggestion);
+            }
         }
-        catch
-        {
-        }
+
+        previousInputSuggestions = new HashSet<string>(inputSuggestions);
     }
 
     [RelatedTo(nameof(OnGUI), RelationTargetType.Method)]
@@ -1006,64 +1065,74 @@ public class GameConsole : MonoBehaviour
     }
 
     #region IEnumerators
+    bool canRemoveWrappersWithBackspaceAfterHasStarted = false;
     /// <summary>
     /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
     private IEnumerator CanRemoveWrappersWithBackspaceAfter(float seconds)
     {
-        canRemoveWrappersWithBackspace = false;
+        canRemoveWrappersWithBackspaceAfterHasStarted = true;
 
         yield return new WaitForSeconds(seconds);
 
         canRemoveWrappersWithBackspace = true;
+        canRemoveWrappersWithBackspaceAfterHasStarted = false;
     }
 
+    bool dontShowSuggestionsForHasStarted = false;
     /// <summary>
     /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
     private IEnumerator DontShowSuggestionsFor(float seconds)
     {
-        showSuggestions = false;
+        dontShowSuggestionsForHasStarted = true;
 
         yield return new WaitForSeconds(seconds);
 
         showSuggestions = true;
+        dontShowSuggestionsForHasStarted = false;
     }
 
+    bool canScrollSuggestionsAfterHasStarted = false;
     /// <summary>
     /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
     private IEnumerator CanScrollSuggestionsAfter(float seconds)
     {
-        canScrollSuggestions = false;
+        canScrollSuggestionsAfterHasStarted = true;
 
         yield return new WaitForSeconds(seconds);
 
         canScrollSuggestions = true;
+        canScrollSuggestionsAfterHasStarted = false;
     }
 
+    bool canCompleteSuggestionAfterHasStarted = false;
     /// <summary>
     /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
     private IEnumerator CanCompleteSuggestionAfter(float seconds)
     {
-        canCompleteSuggestion = false;
+        canCompleteSuggestionAfterHasStarted = true;
 
         yield return new WaitForSeconds(seconds);
 
         canCompleteSuggestion = true;
+        canCompleteSuggestionAfterHasStarted = false;
     }
 
+    bool canDeactivateConsoleAfterHasStarted = false;
     /// <summary>
     /// Used to set small delay to do a thing (since OnGui() is called many times per frame)
     /// </summary>
     private IEnumerator CanDeactivateConsoleAfter(float seconds)
     {
-        canDeactivateConsole = false;
+        canDeactivateConsoleAfterHasStarted = true;
 
         yield return new WaitForSeconds(seconds);
 
         canDeactivateConsole = true;
+        canDeactivateConsoleAfterHasStarted = false;
     }
     #endregion
 
@@ -1071,17 +1140,17 @@ public class GameConsole : MonoBehaviour
     /// <summary>
     /// Set the console activation key.
     /// </summary>
-    public void SetActivateKey(KeyCode keyCode)
+    public void SetActivationKey(KeyCode keyCode)
     {
-        activateKey = keyCode;
+        activationKey = keyCode;
     }
 
     /// <summary>
     /// Get the console activation key.
     /// </summary>
-    public KeyCode GetActivateKey()
+    public KeyCode GetActivationKey()
     {
-        return activateKey;
+        return activationKey;
     }
 
     /// <summary>
