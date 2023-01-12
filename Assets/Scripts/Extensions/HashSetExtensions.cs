@@ -1,4 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using Assets.Scripts.Other;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace Assets.Scripts.Extensions
 {
@@ -56,6 +59,14 @@ namespace Assets.Scripts.Extensions
             }
 
             return default;
+        }
+
+        public static void AddIfUniqueCommand(this HashSet<TimedCommandCallerCommand> hashSet, TimedCommandCallerCommand item)
+        {
+            if (!hashSet.Any(e => e.Command == item.Command))
+            {
+                hashSet.Add(item);
+            }
         }
     }
 }

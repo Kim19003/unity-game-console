@@ -1,144 +1,149 @@
 ﻿using System;
-using UnityEngine;
 
 namespace Assets.Scripts.Other
 {
     public class TimedUnityAction
     {
-        public Action Action
-        {
-            get
-            {
-                return action;
-            }
-            set
-            {
-                if (value != null)
-                {
-                    action = value;
-                }
-            }
-        }
+        public Action Action { get { return action; } set { action = value; } }
         Action action = null;
 
-        public float Interval
-        {
-            get
-            {
-                return interval;
-            }
-            private set
-            {
-                if (value > 0)
-                {
-                    interval = value;
-                }
-            }
-        }
+        public float Interval { get { return interval; } set { if (value >= 0) interval = value; } }
         private float interval = 0f;
 
-        float nextActionTime = 0f;
+        public UnityTimeMode TimeMode { get { return timeMode; } set { timeMode = value; } }
+        private UnityTimeMode timeMode = UnityTimeMode.Time;
 
-        bool started = false;
+        public float StartDelay { get { return startDelay; } set { if (value >= 0) startDelay = value; } }
+        private float startDelay = 0f;
 
-        public TimedUnityAction()
+        public float DisableAfter { get { return disableAfter; } set { if (value >= 0) disableAfter = value; } }
+        private float disableAfter = 0f;
+
+        public bool Started { get { return started; } }
+        private bool started = false;
+
+        public bool Disabled { get { return disabled; } }
+        private bool disabled = false;
+
+        private float currentTimeElsewhereAtFirstRun = 0f;
+        private bool startOver = true;
+        private float nextActionCallTime = 0f;
+
+        public TimedUnityAction(Action action = null, float interval = 0f, UnityTimeMode timeMode = UnityTimeMode.Time, float startDelay = 0f, float disableAfter = 0f)
         {
-
+            Action = action;
+            Interval = interval;
+            TimeMode = timeMode;
+            StartDelay = startDelay;
+            DisableAfter = disableAfter;
         }
 
-        public TimedUnityAction(Action action, float interval)
+        /// <summary>
+        /// Runs {Action} every {Interval} second. Call this once in any of the Unity's Update methods.
+        /// </summary>
+        /// <returns><see langword="true"/> if the action was invoked.</returns>
+        public bool Run()
+        {
+            if (disabled)
+            {
+                return false;
+            }
+
+            return HandleRunning(Action, Interval, TimeMode, StartDelay, DisableAfter);
+        }
+
+        /// <summary>
+        /// Runs {action} every {interval} second. Call this once in any of the Unity's Update methods.
+        /// </summary>
+        /// <returns><see langword="true"/> if the action was invoked.</returns>
+        public bool Run(Action action, float interval, UnityTimeMode timeMode = UnityTimeMode.Time, float startDelay = 0f, float disableAfter = 0f)
+        {
+            if (disabled)
+            {
+                return false;
+            }
+
+            Action = action;
+            Interval = interval;
+            TimeMode = timeMode;
+            StartDelay = startDelay;
+            DisableAfter = disableAfter;
+
+            return HandleRunning(Action, Interval, TimeMode, StartDelay, DisableAfter);
+        }
+
+        private bool HandleRunning(Action action, float interval, UnityTimeMode timeMode, float startDelay, float disableAfter)
         {
             if (action == null)
             {
                 throw new ArgumentException("Action cannot be null.");
             }
-            else if (interval <= 0)
+            else if (interval < 0)
             {
-                throw new ArgumentException("Interval must be greater than 0.");
-            }
-
-            Action = action;
-            Interval = interval;
-        }
-
-        /// <summary>
-        /// Runs {Action} every {Interval} second. Call this in Unity's Update method.
-        /// </summary>
-        public void Run(float startDelay = 0f)
-        {
-            if (Action == null)
-            {
-                throw new ArgumentException("Action cannot be null.");
-            }
-            else if (Interval <= 0)
-            {
-                throw new ArgumentException("Interval must be greater than 0.");
+                throw new ArgumentException("Interval must be greater than or equal to 0.");
             }
             else if (startDelay < 0)
             {
-                throw new ArgumentException("Start delay must be greater than or equal to 0.");
+                throw new ArgumentException("Start delay time must be greater than or equal to 0.");
+            }
+            else if (disableAfter < 0)
+            {
+                throw new ArgumentException("Disable after time must be greater than or equal to 0.");
             }
 
-            if (Time.timeSinceLevelLoad > (startDelay > 0 && !started ? startDelay : nextActionTime))
-            {
-                Action();
+            float currentTimeElsewhere = Helpers.GetTimeMode(timeMode);
 
-                nextActionTime += Interval;
+            if (startOver)
+            {
+                currentTimeElsewhereAtFirstRun = currentTimeElsewhere;
+
+                if (startDelay > 0)
+                {
+                    nextActionCallTime = startDelay;
+                }
+
+                startOver = false;
+            }
+
+            float currentTimeHere = currentTimeElsewhere - currentTimeElsewhereAtFirstRun;
+
+            if (disableAfter > 0f && currentTimeHere >= disableAfter)
+            {
+                Disable();
+            }
+            else if (currentTimeHere > nextActionCallTime)
+            {
+                action();
+
+                nextActionCallTime += interval;
 
                 started = true;
+
+                return true;
             }
+
+            return false;
         }
 
-        /// <summary>
-        /// Runs {action} every {interval} second. Call this in Unity's Update method.
-        /// </summary>
-        public void Run(Action action, float interval, float startDelay = 0f)
+        public void Enable()
         {
-            if (action == null)
+            if (disabled)
             {
-                throw new ArgumentException("Action cannot be null.");
-            }
-            else if (interval <= 0)
-            {
-                throw new ArgumentException("Interval must be greater than 0.");
-            }
-            else if (startDelay < 0)
-            {
-                throw new ArgumentException("Start delay must be greater than or equal to 0.");
-            }
-
-            if (Action == null)
-            {
-                Action = action;
-            }
-            else if (Action != action)
-            {
-                throw new ArgumentException("The action has already been initialized, and cannot be changed here. Use the SetAction method to change the action.");
-            }
-
-            if (Interval != interval)
-            {
-                Interval = interval;
-            }
-
-            if (Time.timeSinceLevelLoad > (startDelay > 0 && !started ? startDelay : nextActionTime))
-            {
-                Action();
-
-                nextActionTime += Interval;
-
-                started = true;
+                disabled = false;
             }
         }
-
-        public void SetAction(Action action)
+        
+        public void Disable()
         {
-            Action = action;
-        }
+            if (!disabled)
+            {
+                started = false;
+                currentTimeElsewhereAtFirstRun = 0f;
+                startOver = true;
+                nextActionCallTime = 0f;
 
-        public void SetInterval(float interval)
-        {
-            Interval = interval;
+                disabled = true;
+            }
         }
     }
 }

@@ -1,7 +1,22 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 
 namespace Assets.Scripts.Other
 {
+    public enum UnityTimeMode
+    {
+        Time,
+        UnscaledTime,
+        TimeSinceLevelLoad,
+        FixedTime,
+        FixedUnscaledTime,
+        DeltaTime,
+        UnscaledDeltaTime,
+        FixedDeltaTime,
+        FixedUnscaledDeltaTime,
+        RealtimeSinceStartup
+    }
+
     public enum GetterResult
     {
         Successful,
@@ -47,7 +62,7 @@ namespace Assets.Scripts.Other
         LightGray
     }
 
-    public class Helpers
+    public static class Helpers
     {
         public static Color32 GetCustomColor(CustomColor customColor, byte alpha = 255)
         {
@@ -127,6 +142,35 @@ namespace Assets.Scripts.Other
             result.Apply();
 
             return result;
+        }
+
+        public static float GetTimeMode(UnityTimeMode timeMode)
+        {
+            switch (timeMode)
+            {
+                case UnityTimeMode.Time:
+                    return Time.time;
+                case UnityTimeMode.UnscaledTime:
+                    return Time.unscaledTime;
+                case UnityTimeMode.TimeSinceLevelLoad:
+                    return Time.timeSinceLevelLoad;
+                case UnityTimeMode.FixedTime:
+                    return Time.fixedTime;
+                case UnityTimeMode.FixedUnscaledTime:
+                    return Time.fixedUnscaledTime;
+                case UnityTimeMode.DeltaTime:
+                    return Time.deltaTime;
+                case UnityTimeMode.UnscaledDeltaTime:
+                    return Time.unscaledDeltaTime;
+                case UnityTimeMode.FixedDeltaTime:
+                    return Time.fixedDeltaTime;
+                case UnityTimeMode.FixedUnscaledDeltaTime:
+                    return Time.fixedUnscaledDeltaTime;
+                case UnityTimeMode.RealtimeSinceStartup:
+                    return Time.realtimeSinceStartup;
+                default:
+                    throw new ArgumentException("Time mode not found.");
+            }
         }
     }
 }

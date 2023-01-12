@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.SocialPlatforms;
 using Color = UnityEngine.Color;
 using GameConsoleConvert = Assets.Scripts.Other.GameConsoleConvert;
 using TextEditor = UnityEngine.TextEditor;
@@ -36,6 +37,9 @@ public class GameConsole : MonoBehaviour
     [SerializeField] private float outputBoxBorderSize = 2f;
     [SerializeField] private Color outputBoxBorderBackgroundColor = Color.gray;
     [SerializeField] private float outputBoxBorderBackgroundColorAlpha = 1f;
+    [SerializeField] private bool showTimestamps = true;
+    [SerializeField] private RichTextColor timestampsColor = RichTextColor.Grey;
+    [SerializeField] private bool timestampsUseParentColor = true;
 
     [Header("Input")]
     [SerializeField] private int inputTextFieldHeight = 20;
@@ -74,6 +78,9 @@ public class GameConsole : MonoBehaviour
     GameConsoleCommand<string, string, string> set_attribute_of;
     GameConsoleCommand get_admitted_attribute_names;
     GameConsoleCommand get_command_ids;
+    GameConsoleCommand<string> set_timescale;
+    GameConsoleCommand<string, string, string> set_as_timed;
+    GameConsoleCommand<string> stop_timed;
 
     GameConsoleCommand<string> set_test_object_position;
 
@@ -83,9 +90,7 @@ public class GameConsole : MonoBehaviour
     private bool justActivated = false;
     private bool canDeactivateConsole = false;
 
-    readonly TimedUnityAction timedAction = new TimedUnityAction();
-    Action currentTimedAction = null;
-    float currentTimedActionInterval = 0;
+    private readonly HashSet<TimedCommandCallerCommand> timedCommandCallerCommands = new HashSet<TimedCommandCallerCommand>();
     #endregion
 
     private void Awake()
@@ -191,10 +196,10 @@ public class GameConsole : MonoBehaviour
 
         #region Commands
         help = new GameConsoleCommand(
-            $"{nameof(help)}",
-            "Show information about all available commands",
-            $"{nameof(help)}",
-            new string[] { $"{nameof(help)}" });
+            id: $"{nameof(help)}",
+            description: "Show information about all available commands",
+            format: $"{nameof(help)}",
+            examples: new string[] { $"{nameof(help)}" });
         help.Action = () =>
         {
             foreach (GameConsoleCommandBase consoleCommand in commands.Cast<GameConsoleCommandBase>())
@@ -206,17 +211,17 @@ public class GameConsole : MonoBehaviour
         };
 
         help_of = new GameConsoleCommand<string>(
-            $"{nameof(help_of)}",
-            "Show information about a command",
-            $"{nameof(help_of)} <str: commandId>",
-            new string[] { $"{nameof(help_of)} \"{nameof(help)}\"" });
+            id: $"{nameof(help_of)}",
+            description: "Show information about a command",
+            format: $"{nameof(help_of)} <str: commandId>",
+            examples: new string[] { $"{nameof(help_of)} \"{nameof(help)}\"" });
         help_of.Action = (commandId) =>
         {
             GameConsoleCommandBase command = commands.Cast<GameConsoleCommandBase>().FirstOrDefault(c => c.CommandId == commandId);
             
             if (command != null)
             {
-                Print($"Id: <b>{command.CommandId}</b>", ConsoleOutputType.Explanation);
+                Print($"Id: {command.CommandId.AsBold()}", ConsoleOutputType.Explanation);
                 Print($"Description: {command.CommandDescription}", ConsoleOutputType.Explanation);
                 Print($"Format: {command.CommandFormat.WrapAlreadyWrappedPartsWithTags("i", '<', '>')}", ConsoleOutputType.Explanation);
                 Print($"Usage example: {(!command.CommandExamples.IsNullOrEmpty() ? command.CommandExamples.GetRandomElement() : string.Empty)}", ConsoleOutputType.Explanation);
@@ -226,42 +231,46 @@ public class GameConsole : MonoBehaviour
                 PrintNotFoundError("Command", commandId);
             }
         };
+        help_of.GetInputSuggestion = () =>
+        {
+            return $"{help_of.CommandId} \"{commands.Cast<GameConsoleCommandBase>().Select(c => c.CommandId).GetRandomElement()}\"";
+        };
 
         clear = new GameConsoleCommand(
-            $"{nameof(clear)}",
-            "Clear the console",
-            $"{nameof(clear)}",
-            new string[] { $"{nameof(clear)}" });
+            id: $"{nameof(clear)}",
+            description: "Clear the console",
+            format: $"{nameof(clear)}",
+            examples: new string[] { $"{nameof(clear)}" });
         clear.Action = () =>
         {
             Clear();
         };
 
         print = new GameConsoleCommand<string>(
-            $"{nameof(print)}",
-            "Print text to the console",
-            $"{nameof(print)} <str: text>",
-            new string[] { $"{nameof(print)} \"Hello world!\"" });
+            id: $"{nameof(print)}",
+            description: "Print text to the console",
+            format: $"{nameof(print)} <str: text>",
+            examples: new string[] { $"{nameof(print)} \"Hello world!\"" });
         print.Action = (text) =>
         {
             Print(text, ConsoleOutputType.Explanation);
         };
 
         quit = new GameConsoleCommand(
-            $"{nameof(quit)}",
-            "Quit the game",
-            $"{nameof(quit)}",
-            new string[] { $"{nameof(quit)}" });
+            id: $"{nameof(quit)}",
+            description: "Quit the game",
+            format: $"{nameof(quit)}",
+            examples: new string[] { $"{nameof(quit)}" });
         quit.Action = () =>
         {
             Application.Quit();
         };
 
         load_scene = new GameConsoleCommand<string>(
-            $"{nameof(load_scene)}",
-            "Load specific scene",
-            $"{nameof(load_scene)} <str: sceneName>",
-            new string[] { $"{nameof(load_scene)} \"SampleScene\"" });
+            id: $"{nameof(load_scene)}",
+            description: "Load specific scene",
+            format: $"{nameof(load_scene)} <str: sceneName>",
+            examples: new string[] { $"{nameof(load_scene)} \"SampleScene\"" });
         load_scene.Action = (sceneName) =>
         {
             int sceneBuildIndex = SceneUtility.GetBuildIndexByScenePath(sceneName);
@@ -278,10 +287,10 @@ public class GameConsole : MonoBehaviour
         };
 
         reload = new GameConsoleCommand(
-            $"{nameof(reload)}",
-            "Reload the current scene",
-            $"{nameof(reload)}",
-            new string[] { $"{nameof(reload)}" });
+            id: $"{nameof(reload)}",
+            description: "Reload the current scene",
+            format: $"{nameof(reload)}",
+            examples: new string[] { $"{nameof(reload)}" });
         reload.Action = () =>
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
@@ -289,10 +298,10 @@ public class GameConsole : MonoBehaviour
         };
 
         fullscreen = new GameConsoleCommand(
-            $"{nameof(fullscreen)}",
-            "Switch to the fullscreen",
-            $"{nameof(fullscreen)}",
-            new string[] { $"{nameof(fullscreen)}" });
+            id: $"{nameof(fullscreen)}",
+            description: "Switch to the fullscreen",
+            format: $"{nameof(fullscreen)}",
+            examples: new string[] { $"{nameof(fullscreen)}" });
         fullscreen.Action = () =>
         {
             Screen.fullScreen = !Screen.fullScreen;
@@ -300,10 +309,10 @@ public class GameConsole : MonoBehaviour
         };
 
         destroy = new GameConsoleCommand<string>(
-            $"{nameof(destroy)}",
-            "Destroy specific game object",
-            $"{nameof(destroy)} <str: gameObjectName>",
-            new string[] { $"{nameof(destroy)} \"Player\"" });
+            id: $"{nameof(destroy)}",
+            description: "Destroy specific game object",
+            format: $"{nameof(destroy)} <str: gameObjectName>",
+            examples: new string[] { $"{nameof(destroy)} \"Player\"" });
         destroy.Action = (gameObjectName) =>
         {
             GameObject gameObject = GameObject.Find(gameObjectName);
@@ -319,10 +328,10 @@ public class GameConsole : MonoBehaviour
         };
 
         set_active = new GameConsoleCommand<string, string>(
-            $"{nameof(set_active)}",
-            "Activate or deactivate specific game object",
-            $"{nameof(set_active)} <str: gameObjectName> <bool: isTrue>",
-            new string[] { $"{nameof(set_active)} \"Player\" false" });
+            id: $"{nameof(set_active)}",
+            description: "Activate or deactivate specific game object",
+            format: $"{nameof(set_active)} <str: gameObjectName> <bool: isTrue>",
+            examples: new string[] { $"{nameof(set_active)} \"Player\" false" });
         set_active.Action = (gameObjectName, isTrue) =>
         {
             GameObject gameObject = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(go => go.name == gameObjectName);
@@ -347,10 +356,10 @@ public class GameConsole : MonoBehaviour
         };
 
         get_attribute_of = new GameConsoleCommand<string, string>(
-            $"{nameof(get_attribute_of)}",
-            "Find a game object by name and get it's attribute value",
-            $"{nameof(get_attribute_of)} <str: gameObjectName> <str: attributeName>",
-            new string[] { $"{nameof(get_attribute_of)} \"Player\" \"position\"" });
+            id: $"{nameof(get_attribute_of)}",
+            description: "Find a game object by name and get it's attribute value",
+            format: $"{nameof(get_attribute_of)} <str: gameObjectName> <str: attributeName>",
+            examples: new string[] { $"{nameof(get_attribute_of)} \"Player\" \"position\"" });
         get_attribute_of.Action = (gameObjectName, attributeName) =>
         {
             GameObject gameObject = GameObject.Find(gameObjectName);
@@ -374,10 +383,10 @@ public class GameConsole : MonoBehaviour
         };
 
         set_attribute_of = new GameConsoleCommand<string, string, string>(
-            $"{nameof(set_attribute_of)}",
-            "Find a game object by name and set it's attribute value",
-            $"{nameof(set_attribute_of)} <str: gameObjectName> <str: attributeName> <obj: attributeValue>",
-            new string[] { $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\"" });
+            id: $"{nameof(set_attribute_of)}",
+            description: "Find a game object by name and set it's attribute value",
+            format: $"{nameof(set_attribute_of)} <str: gameObjectName> <str: attributeName> <obj: attributeValue>",
+            examples: new string[] { $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\"" });
         set_attribute_of.Action = (gameObjectName, attributeName, attributeValue) =>
         {
             GameObject gameObject = GameObject.Find(gameObjectName);
@@ -388,7 +397,7 @@ public class GameConsole : MonoBehaviour
                 switch (setterResult)
                 {
                     case SetterResult.Successful:
-                        Print($"{gameObject.transform.name}'s {attributeName} is now {gameObject.GetAttributeValue(attributeName)}", ConsoleOutputType.Explanation);
+                        Print($"{gameObject.transform.name}'s {attributeName} is now {gameObject.GetAttributeValue(attributeName).Value}", ConsoleOutputType.Explanation);
                         break;
                     case SetterResult.ValueNotAllowed:
                         PrintIncorrectTypeError("Argument", nameof(attributeValue));
@@ -405,10 +414,10 @@ public class GameConsole : MonoBehaviour
         };
 
         get_admitted_attribute_names = new GameConsoleCommand(
-            $"{nameof(get_admitted_attribute_names)}",
-            "Get the GameObject type's admitted attribute names",
-            $"{nameof(get_admitted_attribute_names)}",
-            new string[] { $"{nameof(get_admitted_attribute_names)}" });
+            id: $"{nameof(get_admitted_attribute_names)}",
+            description: "Get the GameObject type's admitted attribute names",
+            format: $"{nameof(get_admitted_attribute_names)}",
+            examples: new string[] { $"{nameof(get_admitted_attribute_names)}" });
         get_admitted_attribute_names.Action = () =>
         {
             foreach (string attributeName in GameObjectExtensions.AttributeNames)
@@ -418,10 +427,10 @@ public class GameConsole : MonoBehaviour
         };
 
         get_command_ids = new GameConsoleCommand(
-            $"{nameof(get_command_ids)}",
-            "Get all command ids",
-            $"{nameof(get_command_ids)}",
-            new string[] { $"{nameof(get_command_ids)}" });
+            id: $"{nameof(get_command_ids)}",
+            description: "Get all command ids",
+            format: $"{nameof(get_command_ids)}",
+            examples: new string[] { $"{nameof(get_command_ids)}" });
         get_command_ids.Action = () =>
         {
             foreach (GameConsoleCommandBase command in commands.Cast<GameConsoleCommandBase>().ToList())
@@ -430,11 +439,129 @@ public class GameConsole : MonoBehaviour
             }
         };
 
+        set_timescale = new GameConsoleCommand<string>(
+            id: $"{nameof(set_timescale)}",
+            description: "Set the scale at which time passes",
+            format: $"{nameof(set_timescale)} <flt: timeScale>",
+            examples: new string[] { $"{nameof(set_timescale)} \"1\"" });
+        set_timescale.Action = (timeScale) =>
+        {
+            GameConsoleType<float> timeScaleType = GameConsoleConvert.ToFloat(timeScale);
+
+            if (timeScaleType != null)
+            {
+                Time.timeScale = timeScaleType.Value;
+                Print($"Time scale is now {Time.timeScale}", ConsoleOutputType.Explanation);
+            }
+            else
+            {
+                PrintIncorrectTypeError("Argument", nameof(timeScale));
+            }
+        };
+
+        //  GameConsoleCommand<string, string, string> set_as_timed;
+
+        set_as_timed = new GameConsoleCommand<string, string, string>(
+            id: $"{nameof(set_as_timed)}",
+            description: "Set a command as a timed command",
+            format: $"{nameof(set_as_timed)} <flt: callTime>, <flt: stopTime>, <cmd: command>",
+            examples: new string[] { $"{nameof(set_as_timed)} \"1\" \"10\" {{ {nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\" }}" });
+        set_as_timed.Action = (callTime, stopTime, command) =>
+        {
+            string foundCommandId = command.GetFirstWord();
+
+            GameConsoleType<float> callTimeType = GameConsoleConvert.ToFloat(callTime);
+            GameConsoleType<float> stopTimeType = GameConsoleConvert.ToFloat(stopTime);
+            
+            if (callTimeType == null)
+            {
+                PrintIncorrectTypeError("Argument", nameof(callTime));
+            }
+            else if (stopTimeType == null)
+            {
+                PrintIncorrectTypeError("Argument", nameof(stopTime));
+            }
+            else
+            {
+                GameConsoleCommandBase foundCommand = commands.Cast<GameConsoleCommandBase>().FirstOrDefault(c => c.CommandId == foundCommandId);
+
+                if (foundCommand != null)
+                {
+                    int foundCommandsParametersAmount = foundCommand.GetParametersAmount();
+                    string[] inputArguments = command.GetArguments(foundCommandId, new char[] { '\"', '\'' });
+
+                    if (foundCommandsParametersAmount == 0 || foundCommandsParametersAmount == inputArguments.Length)
+                    {
+                        TimedCommandCallerCommand timedCommand;
+                        switch (foundCommandsParametersAmount)
+                        {
+                            case 0:
+                                timedCommand = new TimedCommandCallerCommand(foundCommand, callTimeType.Value, stopTimeType.Value,
+                                    ((GameConsoleCommand)foundCommand).Action);
+                                break;
+                            case 1:
+                                timedCommand = new TimedCommandCallerCommand(foundCommand, callTimeType.Value, stopTimeType.Value,
+                                    ((GameConsoleCommand<string>)foundCommand).Action, inputArguments);
+                                break;
+                            case 2:
+                                timedCommand = new TimedCommandCallerCommand(foundCommand, callTimeType.Value, stopTimeType.Value,
+                                    ((GameConsoleCommand<string, string>)foundCommand).Action, inputArguments);
+                                break;
+                            case 3:
+                                timedCommand = new TimedCommandCallerCommand(foundCommand, callTimeType.Value, stopTimeType.Value,
+                                    ((GameConsoleCommand<string, string, string>)foundCommand).Action, inputArguments);
+                                break;
+                            default:
+                                timedCommand = null;
+                                break;
+                        }
+
+                        if (timedCommand != null)
+                        {
+                            timedCommandCallerCommands.AddIfUniqueCommand(timedCommand);
+                        }
+                        else
+                        {
+                            PrintNotRecognizedError("Command", foundCommandId);
+                        }
+                    }
+                    else
+                    {
+                        PrintWrongUsageOfCommandError(foundCommandId);
+                    }
+                }
+                else
+                {
+                    PrintNotFoundError("Command", foundCommandId);
+                }
+            }
+        };
+
+        GameConsoleCommand<string> stop_timed = new GameConsoleCommand<string>(
+            id: $"{nameof(stop_timed)}",
+            description: "Stop a timed command",
+            format: $"{nameof(stop_timed)} <str: commandId>",
+            examples: new string[] { $"{nameof(stop_timed)} \"{nameof(set_attribute_of)}\"" });
+        stop_timed.Action = (commandId) =>
+        {
+            TimedCommandCallerCommand timedCommand = timedCommandCallerCommands.FirstOrDefault(c => c.Command.CommandId == commandId);
+            
+            if (timedCommand != null)
+            {
+                timedCommandCallerCommands.Remove(timedCommand);
+                Print($"Stopped the timed command {timedCommand.Command.CommandId.AsBold()}", ConsoleOutputType.Explanation);
+            }
+            else
+            {
+                PrintNotFoundError("Timed command", commandId);
+            }
+        };
+
         set_test_object_position = new GameConsoleCommand<string>(
-            $"{nameof(set_test_object_position)}",
-            "Set test object position",
-            $"{nameof(set_test_object_position)} <v3: position>",
-            new string[] { $"{nameof(set_test_object_position)} \"(1, 1, 0)\"" });
+            id: $"{nameof(set_test_object_position)}",
+            description: "Set test object position",
+            format: $"{nameof(set_test_object_position)} <v3: position>",
+            examples: new string[] { $"{nameof(set_test_object_position)} \"(1, 1, 0)\"" });
         set_test_object_position.Action = (position) =>
         {
             GameObject testObject = GameObject.Find("Test");
@@ -483,6 +610,9 @@ public class GameConsole : MonoBehaviour
             set_attribute_of,
             get_admitted_attribute_names,
             get_command_ids,
+            set_timescale,
+            set_as_timed,
+            stop_timed,
 
             set_test_object_position,
         });
@@ -501,18 +631,27 @@ public class GameConsole : MonoBehaviour
             }
         }
 
-        if (currentTimedAction != null)
+        // Timed commands running and removal
+        HashSet<TimedCommandCallerCommand> timedCommandCallerCommandsToRemove = new HashSet<TimedCommandCallerCommand>();
+        
+        foreach (TimedCommandCallerCommand timedCommandCallerCommand in timedCommandCallerCommands)
         {
-            if (currentTimedActionInterval > 0)
+            if (timedCommandCallerCommand.TimedAction.Run())
             {
-                timedAction.Run(() => currentTimedAction(), currentTimedActionInterval);
+                Print($"Timed command {timedCommandCallerCommand.Command.CommandId.AsBold()} was invoked", ConsoleOutputType.Warning);
             }
-            else
+
+            if (timedCommandCallerCommand.TimedAction.Disabled)
             {
-                currentTimedAction = null;
-                currentTimedActionInterval = 0;
+                timedCommandCallerCommandsToRemove.Add(timedCommandCallerCommand);
             }
         }
+
+        foreach (TimedCommandCallerCommand timedCommandCallerCommandToRemove in timedCommandCallerCommandsToRemove)
+        {
+            timedCommandCallerCommands.Remove(timedCommandCallerCommandToRemove);
+        }
+        // ----------
 
         // Coroutines
         if (!canRemoveWrappersWithBackspace && !canRemoveWrappersWithBackspaceAfterHasStarted)
@@ -535,6 +674,7 @@ public class GameConsole : MonoBehaviour
         {
             StartCoroutine(CanDeactivateConsoleAfter(canDeactivateConsoleAfterTime));
         }
+        // ----------
     }
 
     private Vector2 scrollViewScrollPosition;
@@ -655,7 +795,6 @@ public class GameConsole : MonoBehaviour
             string.Empty, inputBoxStyle, inputBoxBorderSize, inputBoxBorderStyle, BorderDirection.Left | BorderDirection.Right | BorderDirection.Bottom);
 
         int textFieldControlId = GUIUtility.keyboardControl;
-        string inputReflection = input;
         string inputSuggestion = string.Empty;
 
         TextEditor textEditor = (TextEditor)GUIUtility.GetStateObject(typeof(TextEditor), textFieldControlId);
@@ -717,6 +856,8 @@ public class GameConsole : MonoBehaviour
 
         if (string.IsNullOrEmpty(input))
         {
+            previousCommandInputSuggestions.Clear();
+
             if (showInputHistorySuggestion)
             {
                 inputSuggestion = inputs.GetClosestAt(ref currentInputHistoryIndex, true) ?? string.Empty;
@@ -783,18 +924,19 @@ public class GameConsole : MonoBehaviour
             currentInputHistoryIndex = inputs.Count;
             showInputHistorySuggestion = false;
 
-            GetInputSuggestions(input, out HashSet<string> inputSuggestions);
+            GetCommandInputSuggestions(input, out HashSet<string> commandInputSuggestions);
 
-            if (showSuggestions && !inputSuggestions.Any(s => s == inputReflection))
+            ReadOnlyValueHolder<string> readOnlyTempInput = new ReadOnlyValueHolder<string>(input);
+            if (showSuggestions && !commandInputSuggestions.Any(s => s == readOnlyTempInput.Value))
             {
-                string currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+                string currentSuggestion = commandInputSuggestions.GetClosestAt(ref currentSuggestionIndex);
 
                 if (Event.current.isKey)
                 {
                     switch (Event.current.keyCode)
                     {
                         case KeyCode.Tab:
-                            if (inputSuggestions.Count > 0)
+                            if (commandInputSuggestions.Count > 0)
                             {
                                 // Apply suggestion
 
@@ -820,23 +962,23 @@ public class GameConsole : MonoBehaviour
                             break;
                         case KeyCode.UpArrow:
                             Event.current.keyCode = KeyCode.None;
-                            if (inputSuggestions.Count > 0 && canScrollSuggestions)
+                            if (commandInputSuggestions.Count > 0 && canScrollSuggestions)
                             {
                                 // Show previous suggestion
 
                                 currentSuggestionIndex--;
-                                currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+                                currentSuggestion = commandInputSuggestions.GetClosestAt(ref currentSuggestionIndex);
                                 canScrollSuggestions = false;
                             }
                             break;
                         case KeyCode.DownArrow:
                             Event.current.keyCode = KeyCode.None;
-                            if (inputSuggestions.Count > 0 && canScrollSuggestions)
+                            if (commandInputSuggestions.Count > 0 && canScrollSuggestions)
                             {
                                 // Show next suggestion
 
                                 currentSuggestionIndex++;
-                                currentSuggestion = inputSuggestions.GetClosestAt(ref currentSuggestionIndex);
+                                currentSuggestion = commandInputSuggestions.GetClosestAt(ref currentSuggestionIndex);
                                 canScrollSuggestions = false;
                             }
                             break;
@@ -936,32 +1078,37 @@ public class GameConsole : MonoBehaviour
         }
     }
 
-    HashSet<string> previousInputSuggestions;
+    HashSet<string> previousCommandInputSuggestions = new HashSet<string>();
 
     [RelatedTo(nameof(HandleInputField), RelationTargetType.Method)]
-    private void GetInputSuggestions(string input, out HashSet<string> inputSuggestions)
+    private void GetCommandInputSuggestions(string input, out HashSet<string> commandInputSuggestions)
     {
-        inputSuggestions = new HashSet<string>();
+        commandInputSuggestions = new HashSet<string>();
 
-        foreach (var gameConsoleCommand in commands.Cast<GameConsoleCommandBase>().ToList())
+        if (!string.IsNullOrEmpty(input))
         {
-            string suggestion;
-            if (previousInputSuggestions != null && previousInputSuggestions.Any(s => s.StartsWith(gameConsoleCommand.CommandId)))
+            foreach (var gameConsoleCommand in commands.Cast<GameConsoleCommandBase>())
             {
-                suggestion = previousInputSuggestions.FirstOrDefault(s => s.StartsWith(gameConsoleCommand.CommandId));
-            }
-            else
-            {
-                suggestion = !gameConsoleCommand.CommandExamples.IsNullOrEmpty() ? gameConsoleCommand.CommandExamples.GetRandomElement() : gameConsoleCommand.CommandFormat;
-            }
+                string previousSameSuggestion = previousCommandInputSuggestions.FirstOrDefault(s => s == gameConsoleCommand.CommandId || s.StartsWith(gameConsoleCommand.CommandId + " "));
 
-            if (suggestion.ToLower().StartsWith(input.ToLower()))
-            {
-                inputSuggestions.Add(suggestion);
+                string suggestion;
+                if (!string.IsNullOrEmpty(previousSameSuggestion))
+                {
+                    suggestion = previousSameSuggestion;
+                }
+                else
+                {
+                    suggestion = gameConsoleCommand.GetInputSuggestion();
+                }
+
+                if (suggestion.ToLower().StartsWith(input.ToLower()))
+                {
+                    commandInputSuggestions.Add(suggestion);
+                }
             }
         }
 
-        previousInputSuggestions = new HashSet<string>(inputSuggestions);
+        previousCommandInputSuggestions = new HashSet<string>(commandInputSuggestions);
     }
 
     [RelatedTo(nameof(OnGUI), RelationTargetType.Method)]
@@ -1049,6 +1196,11 @@ public class GameConsole : MonoBehaviour
         return false;
     }
 
+    private void PrintNotRecognizedError(string thing, string thingName)
+    {
+        Print($"{thing} \"{thingName}\" not recognized", ConsoleOutputType.Error);
+    }
+
     private void PrintIncorrectTypeError(string thing, string thingName)
     {
         Print($"{thing} \"{thingName}\" is not the correct type", ConsoleOutputType.Error);
@@ -1061,7 +1213,22 @@ public class GameConsole : MonoBehaviour
 
     private void PrintWrongUsageOfCommandError(string commandId)
     {
-        Print($"Incorrect usage of the command \"{commandId}\" (use \"help_of <b>{commandId}</b>\" to get details about the command)", ConsoleOutputType.Error);
+        Print($"Incorrect usage of the command \"{commandId}\" (use \"help_of {commandId.AsBold()}\" to get details about the command)", ConsoleOutputType.Error);
+    }
+
+    private RichTextColor GetRichTextColorByOutputType(ConsoleOutputType outputType)
+    {
+        switch (outputType)
+        {
+            case ConsoleOutputType.Explanation:
+                return outputExplanationTextColor;
+            case ConsoleOutputType.Warning:
+                return outputWarningTextColor;
+            case ConsoleOutputType.Error:
+                return outputErrorTextColor;
+            default:
+                throw new ArgumentException("Didn't find the matching output type.");
+        }
     }
 
     #region IEnumerators
@@ -1073,7 +1240,7 @@ public class GameConsole : MonoBehaviour
     {
         canRemoveWrappersWithBackspaceAfterHasStarted = true;
 
-        yield return new WaitForSeconds(seconds);
+        yield return new WaitForSecondsRealtime(seconds);
 
         canRemoveWrappersWithBackspace = true;
         canRemoveWrappersWithBackspaceAfterHasStarted = false;
@@ -1087,7 +1254,7 @@ public class GameConsole : MonoBehaviour
     {
         dontShowSuggestionsForHasStarted = true;
 
-        yield return new WaitForSeconds(seconds);
+        yield return new WaitForSecondsRealtime(seconds);
 
         showSuggestions = true;
         dontShowSuggestionsForHasStarted = false;
@@ -1101,7 +1268,7 @@ public class GameConsole : MonoBehaviour
     {
         canScrollSuggestionsAfterHasStarted = true;
 
-        yield return new WaitForSeconds(seconds);
+        yield return new WaitForSecondsRealtime(seconds);
 
         canScrollSuggestions = true;
         canScrollSuggestionsAfterHasStarted = false;
@@ -1115,7 +1282,7 @@ public class GameConsole : MonoBehaviour
     {
         canCompleteSuggestionAfterHasStarted = true;
 
-        yield return new WaitForSeconds(seconds);
+        yield return new WaitForSecondsRealtime(seconds);
 
         canCompleteSuggestion = true;
         canCompleteSuggestionAfterHasStarted = false;
@@ -1129,7 +1296,7 @@ public class GameConsole : MonoBehaviour
     {
         canDeactivateConsoleAfterHasStarted = true;
 
-        yield return new WaitForSeconds(seconds);
+        yield return new WaitForSecondsRealtime(seconds);
 
         canDeactivateConsole = true;
         canDeactivateConsoleAfterHasStarted = false;
@@ -1190,7 +1357,28 @@ public class GameConsole : MonoBehaviour
     /// </summary>
     public void Print(string text, ConsoleOutputType outputType = ConsoleOutputType.Information)
     {
-        outputs.Add(new GameConsoleOutput(text, outputType));
+        string timestamp = string.Empty;
+        if (showTimestamps)
+        {
+            timestamp = $"{DateTime.Now.ToString("T")} - ";
+            if (!timestampsUseParentColor)
+            {
+                timestamp = timestamp.AsColor(timestampsColor);
+                try
+                {
+                    RichTextColor richTextColor = GetRichTextColorByOutputType(outputType);
+                    text = text.AsColor(richTextColor);
+                }
+                catch (ArgumentException)
+                {
+                }
+                outputType = ConsoleOutputType.Custom;
+            }
+        }
+
+        string outputText = $"{timestamp}{text}";
+        GameConsoleOutput output = new GameConsoleOutput(outputText, outputType);
+        outputs.Add(output);
     }
 
     /// <summary>

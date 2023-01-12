@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using Assets.Scripts.Other;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -72,6 +74,21 @@ namespace Assets.Scripts.Extensions
             }
 
             return '\0';
+        }
+
+        public static string AsBold(this string text)
+        {
+            return $"<b>{text}</b>";
+        }
+
+        public static string AsItalic(this string text)
+        {
+            return $"<i>{text}</i>";
+        }
+
+        public static string AsColor(this string text, RichTextColor richTextColor)
+        {
+            return $"<color={richTextColor.ToString().ToLower()}>{text}</color>";
         }
 
         public static string WrapWithTags(this string text, string tag, char tagStartChar = '<', char tagEndChar = '>', char tagClosingMarkerChar = '/')
@@ -235,6 +252,18 @@ namespace Assets.Scripts.Extensions
             }
 
             return '\0';
+        }
+
+        public static string[] GetArguments(this string commandAsWhole, string commandId, char[] wrapChars)
+        {
+            string[] commandSplitted = commandAsWhole.SplitAllNonWrapped(' ', wrapChars);
+
+            if (commandSplitted.Length > 0 && commandSplitted[0] == commandId)
+            {
+                return commandSplitted.Skip(1).ToArray();
+            }
+
+            return Array.Empty<string>();
         }
     }
 }

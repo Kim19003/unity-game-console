@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Assets.Scripts.Extensions;
+using System;
 
 public class GameConsoleCommandBase
 {
@@ -11,12 +12,32 @@ public class GameConsoleCommandBase
     public string[] CommandExamples { get { return commandExamples; } }
     private readonly string[] commandExamples;
 
+    public Func<string> GetInputSuggestion
+    {
+        get
+        {
+            return getInputSuggestion;
+        }
+        set
+        {
+            if (value != null)
+            {
+                getInputSuggestion = value;
+            }
+        }
+    }
+    private Func<string> getInputSuggestion;
+
     public GameConsoleCommandBase(string id, string description, string format, string[] examples = null)
     {
         commandId = id;
         commandDescription = description;
         commandFormat = format;
         commandExamples = examples;
+        getInputSuggestion = () =>
+        {
+            return !commandExamples.IsNullOrEmpty() ? commandExamples.GetRandomElement() : commandFormat;
+        };
     }
 }
 

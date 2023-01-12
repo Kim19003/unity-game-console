@@ -1,0 +1,12 @@
+11.1.2023
+
+✔️ Timed Command calling (make a new class for them?)
+✔️ Timed Command calling is a COMMAND, that takes whole commands as an arguments
+(<flt: callTime>, <flt: stopTime>, <cmd: command>)
+❌ New curly bracket "wrappers" for wrapping commands as a whole (as an arguments)
+❌ "Unique Coroutine" class
+✔️ IEnumerator WaitForSeconds -> WaitForSecondsRealtime
+❌ GameConsoleCommandBase.GetInputSuggestion always fills it's CommandId as the first word of the suggestion
+❌ BorderedBox border lengths must be fixed in the if-tree part
+❌ Create foreach to the Update method, which checks, that every GameConsoleCommand.CommandId is unique
+❌ New "highlighted" ConsoleOutputType, and other new types?
