@@ -39,7 +39,7 @@ namespace Assets.Scripts.Other
         }
 
         /// <summary>
-        /// Runs {Action} every {Interval} second. Call this once in any of the Unity's Update methods.
+        /// Invokes {Action} every {Interval} second. Call this once in any of the Unity's Update methods.
         /// </summary>
         /// <returns><see langword="true"/> if the action was invoked.</returns>
         public bool Run()
@@ -53,7 +53,7 @@ namespace Assets.Scripts.Other
         }
 
         /// <summary>
-        /// Runs {action} every {interval} second. Call this once in any of the Unity's Update methods.
+        /// Invokes {action} every {interval} second. Call this once in any of the Unity's Update methods.
         /// </summary>
         /// <returns><see langword="true"/> if the action was invoked.</returns>
         public bool Run(Action action, float interval, UnityTimeMode timeMode = UnityTimeMode.Time, float startDelay = 0f, float disableAfter = 0f)

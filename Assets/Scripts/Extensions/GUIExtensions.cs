@@ -42,7 +42,11 @@ namespace Assets.Scripts.Extensions
             if (borderDirection.HasFlag(BorderDirection.Top))
             {
                 // Top border
-                GUI.Box(new Rect(position.x + borderSize, position.y, position.width - borderSize * 2, borderSize), string.Empty, borderStyle);
+                float fixedX = borderDirection.HasFlag(BorderDirection.Left) ? position.x + borderSize : position.x;
+                float fixedWidth = borderDirection.HasFlag(BorderDirection.Left | BorderDirection.Right) ? position.width - borderSize * 2
+                    : borderDirection.HasFlag(BorderDirection.Left) || borderDirection.HasFlag(BorderDirection.Right) ? position.width - borderSize : position.width;
+
+                GUI.Box(new Rect(fixedX, position.y, fixedWidth, borderSize), string.Empty, borderStyle);
             }
 
             if (borderDirection.HasFlag(BorderDirection.Left))
@@ -54,7 +58,11 @@ namespace Assets.Scripts.Extensions
             if (borderDirection.HasFlag(BorderDirection.Bottom))
             {
                 // Bottom border
-                GUI.Box(new Rect(position.x + borderSize, position.y + position.height - borderSize, position.width - borderSize * 2, borderSize), string.Empty, borderStyle);
+                float fixedX = borderDirection.HasFlag(BorderDirection.Left) ? position.x + borderSize : position.x;
+                float fixedWidth = borderDirection.HasFlag(BorderDirection.Left | BorderDirection.Right) ? position.width - borderSize * 2
+                    : borderDirection.HasFlag(BorderDirection.Left) || borderDirection.HasFlag(BorderDirection.Right) ? position.width - borderSize : position.width;
+
+                GUI.Box(new Rect(fixedX, position.y + position.height - borderSize, fixedWidth, borderSize), string.Empty, borderStyle);
             }
 
             if (borderDirection.HasFlag(BorderDirection.Right))

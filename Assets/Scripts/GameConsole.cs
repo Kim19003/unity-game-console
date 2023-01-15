@@ -24,6 +24,7 @@ public class GameConsole : MonoBehaviour
     [SerializeField] private Color defaultTextColor = Color.white;
     [SerializeField] private RichTextColor inputSuggestionTextColor = RichTextColor.Grey;
     [SerializeField] private RichTextColor outputExplanationTextColor = RichTextColor.Grey;
+    [SerializeField] private RichTextColor outputHighlightTextColor = RichTextColor.Lightblue;
     [SerializeField] private RichTextColor outputWarningTextColor = RichTextColor.Yellow;
     [SerializeField] private RichTextColor outputErrorTextColor = RichTextColor.Red;
 
@@ -231,10 +232,10 @@ public class GameConsole : MonoBehaviour
                 PrintNotFoundError("Command", commandId);
             }
         };
-        help_of.GetInputSuggestion = () =>
+        help_of.SetInputSuggestion(() =>
         {
-            return $"{help_of.CommandId} \"{commands.Cast<GameConsoleCommandBase>().Select(c => c.CommandId).GetRandomElement()}\"";
-        };
+            return $"\"{commands.Cast<GameConsoleCommandBase>().Select(c => c.CommandId).GetRandomElement()}\"";
+        });
 
         clear = new GameConsoleCommand(
             id: $"{nameof(clear)}",
@@ -619,6 +620,22 @@ public class GameConsole : MonoBehaviour
         #endregion
     }
 
+    private void Start()
+    {
+        HashSet<string> commandIds = new HashSet<string>();
+        foreach (GameConsoleCommandBase command in commands.Cast<GameConsoleCommandBase>())
+        {
+            if (!commandIds.Contains(command.CommandId))
+            {
+                commandIds.Add(command.CommandId);
+            }
+            else
+            {
+                throw new ArgumentException($"The command id '{command.CommandId}' is not unique");
+            }
+        }
+    }
+
     private void Update()
     {
         if (Input.GetKeyDown(activationKey))
@@ -638,7 +655,7 @@ public class GameConsole : MonoBehaviour
         {
             if (timedCommandCallerCommand.TimedAction.Run())
             {
-                Print($"Timed command {timedCommandCallerCommand.Command.CommandId.AsBold()} was invoked", ConsoleOutputType.Warning);
+                Print($"Timed command {timedCommandCallerCommand.Command.CommandId.AsBold()} was just invoked", ConsoleOutputType.Highlight);
             }
 
             if (timedCommandCallerCommand.TimedAction.Disabled)
@@ -747,23 +764,26 @@ public class GameConsole : MonoBehaviour
             switch (output.OutputType)
             {
                 case ConsoleOutputType.Explanation:
-                    newOutputText = $"<color={outputExplanationTextColor.ToString().ToLower()}>{output.Text.RemoveTags("color")}</color>";
+                    newOutputText = output.Text.RemoveTags("color").AsColor(outputExplanationTextColor);
+                    break;
+                case ConsoleOutputType.Highlight:
+                    newOutputText = output.Text.RemoveTags("color").AsColor(outputHighlightTextColor);
                     break;
                 case ConsoleOutputType.Warning:
-                    newOutputText = $"<color={outputWarningTextColor.ToString().ToLower()}>{output.Text.RemoveTags("color")}</color>";
+                    newOutputText = output.Text.RemoveTags("color").AsColor(outputWarningTextColor);
                     break;
                 case ConsoleOutputType.Error:
-                    newOutputText = $"<color={outputErrorTextColor.ToString().ToLower()}>{output.Text.RemoveTags("color")}</color>";
+                    newOutputText = output.Text.RemoveTags("color").AsColor(outputErrorTextColor);
                     break;
                 case ConsoleOutputType.Custom:
-                    newOutputText = $"{output.Text}";
+                    newOutputText = output.Text;
                     break;
                 default:
-                    newOutputText = $"<color={defaultTextColor.ToString().ToLower()}>{output.Text.RemoveTags("color")}</color>";
+                    newOutputText = output.Text.RemoveTags("color").AsColor(RichTextColor.White);
                     break;
             }
             GUI.Label(new Rect(borderedBoxContentPartRect.x + outputLabelMarginLeft, outputPositionY, borderedBoxContentPartRect.width,
-                outputLabelHeight + outputLabelMarginBottom), $"{newOutputText}", outputLabelStyle);
+                outputLabelHeight + outputLabelMarginBottom), newOutputText, outputLabelStyle);
 
             outputPositionY += outputLabelHeight + outputLabelMarginBottom;
         }
@@ -1038,7 +1058,7 @@ public class GameConsole : MonoBehaviour
 
                         if (foundChar != '\0')
                         {
-                            input = input.Remove(selectIndex - 1, 1).Insert(selectIndex - 1, selectedTextBeforeTextFieldUpdate.WrapWith(foundChar));
+                            input = input.Remove(selectIndex - 1, 1).Insert(selectIndex - 1, selectedTextBeforeTextFieldUpdate.WrapWith(foundChar.ToString(), foundChar.ToString()));
 
                             delayedCaretIndex = selectIndex + selectedTextBeforeTextFieldUpdate.Length;
                             selectNewParagraph = true;
@@ -1051,7 +1071,7 @@ public class GameConsole : MonoBehaviour
 
                     if (foundChar != '\0')
                     {
-                        input = input.Remove(caretIndex - 1, 1).AddWrappersTo(caretIndex - 1, foundChar);
+                        input = input.Remove(caretIndex - 1, 1).AddWrappersTo(caretIndex - 1, foundChar.ToString(), foundChar.ToString());
                     }
                 }
                 // ----------
@@ -1115,7 +1135,7 @@ public class GameConsole : MonoBehaviour
     private bool HandleInput(string input)
     {
         inputs.Add(input);
-        Print($"> {input}", ConsoleOutputType.Information);
+        Print($">> {input}", ConsoleOutputType.Information);
 
         string[] inputParts;
         if (input.ContainsAmountOf('\"') > 1 || input.ContainsAmountOf('\'') > 1)
@@ -1222,6 +1242,8 @@ public class GameConsole : MonoBehaviour
         {
             case ConsoleOutputType.Explanation:
                 return outputExplanationTextColor;
+            case ConsoleOutputType.Highlight:
+                return outputHighlightTextColor;
             case ConsoleOutputType.Warning:
                 return outputWarningTextColor;
             case ConsoleOutputType.Error:
@@ -1360,7 +1382,7 @@ public class GameConsole : MonoBehaviour
         string timestamp = string.Empty;
         if (showTimestamps)
         {
-            timestamp = $"{DateTime.Now.ToString("T")} - ";
+            timestamp = $"[{DateTime.Now.ToString("T")}] ";
             if (!timestampsUseParentColor)
             {
                 timestamp = timestamp.AsColor(timestampsColor);

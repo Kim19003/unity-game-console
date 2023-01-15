@@ -12,21 +12,7 @@ public class GameConsoleCommandBase
     public string[] CommandExamples { get { return commandExamples; } }
     private readonly string[] commandExamples;
 
-    public Func<string> GetInputSuggestion
-    {
-        get
-        {
-            return getInputSuggestion;
-        }
-        set
-        {
-            if (value != null)
-            {
-                getInputSuggestion = value;
-            }
-        }
-    }
-    private Func<string> getInputSuggestion;
+    private Func<string> inputSuggestion;
 
     public GameConsoleCommandBase(string id, string description, string format, string[] examples = null)
     {
@@ -34,10 +20,25 @@ public class GameConsoleCommandBase
         commandDescription = description;
         commandFormat = format;
         commandExamples = examples;
-        getInputSuggestion = () =>
+        inputSuggestion = () =>
         {
             return !commandExamples.IsNullOrEmpty() ? commandExamples.GetRandomElement() : commandFormat;
         };
+    }
+
+    public void SetInputSuggestion(Func<string> inputSuggestion)
+    {
+        if (inputSuggestion != null)
+        {
+            this.inputSuggestion = inputSuggestion;
+        }
+    }
+
+    public string GetInputSuggestion()
+    {
+        string suggestion = inputSuggestion();
+
+        return $"{(!suggestion.Contains(CommandId) ? CommandId + " " : string.Empty)}{inputSuggestion()}";
     }
 }
 

@@ -2,6 +2,7 @@
 {
     Information,
     Explanation,
+    Highlight,
     Warning,
     Error,
     Custom

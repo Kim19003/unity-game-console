@@ -128,29 +128,14 @@ namespace Assets.Scripts.Extensions
             return text;
         }
 
-        public static string AddWrappersTo(this string text, int index, char wrapChar)
+        public static string AddWrappersTo(this string text, int index, string firstWrapper, string secondWrapper)
         {
-            return text.Insert(index, $"{wrapChar}{wrapChar}");
+            return text.Insert(index, $"{firstWrapper}{secondWrapper}");
         }
 
-        public static string WrapWith(this string text, char wrapChar)
+        public static string WrapWith(this string text, string firstWrapper, string secondWrapper)
         {
-            return $"{wrapChar}{text}{wrapChar}";
-        }
-
-        public static string WrapFirstFoundPart(this string text, string part, char wrapChar)
-        {
-            string newText = text;
-
-            if (newText.Contains(part))
-            {
-                int partIndex = newText.IndexOf(part);
-                newText = newText.Remove(partIndex, part.Length);
-                string partWrapped = part.WrapWith(wrapChar);
-                newText = newText.Insert(partIndex, partWrapped);
-            }
-
-            return newText;
+            return $"{firstWrapper}{text}{secondWrapper}";
         }
 
         public static string RemoveTags(this string text, string tag, char tagStartChar = '<', char tagEndChar = '>', char tagClosingMarkerChar = '/')
