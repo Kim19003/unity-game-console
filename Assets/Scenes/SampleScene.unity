@@ -1895,6 +1895,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
         type: 3}
+      propertyPath: outputBoxBackgroundTexture
+      value: 
+      objectReference: {fileID: 2800000, guid: 61b46303984866e41ab5e860fffc8794, type: 3}
+    - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
+        type: 3}
       propertyPath: outputExplanationTextColor
       value: 8
       objectReference: {fileID: 0}

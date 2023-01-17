@@ -6,6 +6,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using UnityEditor.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.SocialPlatforms;
@@ -63,30 +64,13 @@ public class GameConsole : MonoBehaviour
     private readonly List<GameConsoleOutput> outputs = new List<GameConsoleOutput>();
     private readonly HashSet<string> inputs = new HashSet<string>();
 
-    GUIStyle outputBoxStyle, inputBoxStyle, outputBoxBorderStyle, inputBoxBorderStyle, outputLabelStyle, inputTextFieldStyle;
-
-    GameConsoleCommand help;
-    GameConsoleCommand<string> help_of;
-    GameConsoleCommand clear;
-    GameConsoleCommand<string> print;
-    GameConsoleCommand quit;
-    GameConsoleCommand<string> load_scene;
-    GameConsoleCommand reload;
-    GameConsoleCommand fullscreen;
-    GameConsoleCommand<string> destroy;
-    GameConsoleCommand<string, string> set_active;
-    GameConsoleCommand<string, string> get_attribute_of;
-    GameConsoleCommand<string, string, string> set_attribute_of;
-    GameConsoleCommand get_admitted_attribute_names;
-    GameConsoleCommand get_command_ids;
-    GameConsoleCommand<string> set_timescale;
-    GameConsoleCommand<string, string, string> set_as_timed;
-    GameConsoleCommand<string> stop_timed;
-
-    GameConsoleCommand<string> set_test_object_position;
+    private GUIStyle outputBoxStyle, inputBoxStyle, outputBoxBorderStyle, inputBoxBorderStyle, outputLabelStyle, inputTextFieldStyle;
 
     private string input = string.Empty;
     
+    private readonly char[] generalInputWrappers = new char[] { '\"', '\'' };
+    private readonly (char, char)[] commandInputWrappers = new (char, char)[] { ('{', '}') };
+
     private bool activated = false;
     private bool justActivated = false;
     private bool canDeactivateConsole = false;
@@ -106,7 +90,7 @@ public class GameConsole : MonoBehaviour
         {
             outputBoxBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(outputBoxBackgroundColor.r, outputBoxBackgroundColor.g, outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha));
         }
-        else
+        else if (outputBoxBackgroundColorAlpha > 0)
         {
             outputBoxBackgroundTexture.FillWithColor(new Color(outputBoxBackgroundColor.r, outputBoxBackgroundColor.g, outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha));
         }
@@ -115,7 +99,7 @@ public class GameConsole : MonoBehaviour
         {
             inputBoxBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(inputBoxBackgroundColor.r, inputBoxBackgroundColor.g, inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha));
         }
-        else
+        else if (inputBoxBackgroundColorAlpha > 0)
         {
             inputBoxBackgroundTexture.FillWithColor(new Color(inputBoxBackgroundColor.r, inputBoxBackgroundColor.g, inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha));
         }
@@ -124,7 +108,7 @@ public class GameConsole : MonoBehaviour
         {
             outputBoxBorderBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(outputBoxBorderBackgroundColor.r, outputBoxBorderBackgroundColor.g, outputBoxBorderBackgroundColor.b, outputBoxBorderBackgroundColorAlpha));
         }
-        else
+        else if (outputBoxBorderBackgroundColorAlpha > 0)
         {
             outputBoxBorderBackgroundTexture.FillWithColor(new Color(outputBoxBorderBackgroundColor.r, outputBoxBorderBackgroundColor.g, outputBoxBorderBackgroundColor.b, outputBoxBorderBackgroundColorAlpha));
         }
@@ -133,7 +117,7 @@ public class GameConsole : MonoBehaviour
         {
             inputBoxBorderBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(inputBoxBorderBackgroundColor.r, inputBoxBorderBackgroundColor.g, inputBoxBorderBackgroundColor.b, inputBoxBorderBackgroundColorAlpha));
         }
-        else
+        else if (inputBoxBorderBackgroundColorAlpha > 0)
         {
             inputBoxBorderBackgroundTexture.FillWithColor(new Color(inputBoxBorderBackgroundColor.r, inputBoxBorderBackgroundColor.g, inputBoxBorderBackgroundColor.b, inputBoxBorderBackgroundColorAlpha));
         }
@@ -196,7 +180,7 @@ public class GameConsole : MonoBehaviour
         #endregion
 
         #region Commands
-        help = new GameConsoleCommand(
+        GameConsoleCommand help = new GameConsoleCommand(
             id: $"{nameof(help)}",
             description: "Show information about all available commands",
             format: $"{nameof(help)}",
@@ -211,7 +195,7 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        help_of = new GameConsoleCommand<string>(
+        GameConsoleCommand<string> help_of = new GameConsoleCommand<string>(
             id: $"{nameof(help_of)}",
             description: "Show information about a command",
             format: $"{nameof(help_of)} <str: commandId>",
@@ -234,10 +218,10 @@ public class GameConsole : MonoBehaviour
         };
         help_of.SetInputSuggestion(() =>
         {
-            return $"\"{commands.Cast<GameConsoleCommandBase>().Select(c => c.CommandId).GetRandomElement()}\"";
+            return $"\"{commands.Cast<GameConsoleCommandBase>().Where(c => c.CommandId != help_of.CommandId).Select(c => c.CommandId).GetRandomElement()}\"";
         });
 
-        clear = new GameConsoleCommand(
+        GameConsoleCommand clear = new GameConsoleCommand(
             id: $"{nameof(clear)}",
             description: "Clear the console",
             format: $"{nameof(clear)}",
@@ -247,7 +231,7 @@ public class GameConsole : MonoBehaviour
             Clear();
         };
 
-        print = new GameConsoleCommand<string>(
+        GameConsoleCommand<string> print = new GameConsoleCommand<string>(
             id: $"{nameof(print)}",
             description: "Print text to the console",
             format: $"{nameof(print)} <str: text>",
@@ -257,7 +241,7 @@ public class GameConsole : MonoBehaviour
             Print(text, ConsoleOutputType.Explanation);
         };
 
-        quit = new GameConsoleCommand(
+        GameConsoleCommand quit = new GameConsoleCommand(
             id: $"{nameof(quit)}",
             description: "Quit the game",
             format: $"{nameof(quit)}",
@@ -267,7 +251,7 @@ public class GameConsole : MonoBehaviour
             Application.Quit();
         };
 
-        load_scene = new GameConsoleCommand<string>(
+        GameConsoleCommand<string> load_scene = new GameConsoleCommand<string>(
             id: $"{nameof(load_scene)}",
             description: "Load specific scene",
             format: $"{nameof(load_scene)} <str: sceneName>",
@@ -287,7 +271,7 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        reload = new GameConsoleCommand(
+        GameConsoleCommand reload = new GameConsoleCommand(
             id: $"{nameof(reload)}",
             description: "Reload the current scene",
             format: $"{nameof(reload)}",
@@ -298,7 +282,7 @@ public class GameConsole : MonoBehaviour
             Print($"Reloaded the current scene", ConsoleOutputType.Explanation);
         };
 
-        fullscreen = new GameConsoleCommand(
+        GameConsoleCommand fullscreen = new GameConsoleCommand(
             id: $"{nameof(fullscreen)}",
             description: "Switch to the fullscreen",
             format: $"{nameof(fullscreen)}",
@@ -309,7 +293,7 @@ public class GameConsole : MonoBehaviour
             Print($"Fullscreen: {Screen.fullScreen}", ConsoleOutputType.Explanation);
         };
 
-        destroy = new GameConsoleCommand<string>(
+        GameConsoleCommand<string> destroy = new GameConsoleCommand<string>(
             id: $"{nameof(destroy)}",
             description: "Destroy specific game object",
             format: $"{nameof(destroy)} <str: gameObjectName>",
@@ -328,7 +312,7 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        set_active = new GameConsoleCommand<string, string>(
+        GameConsoleCommand<string, string> set_active = new GameConsoleCommand<string, string>(
             id: $"{nameof(set_active)}",
             description: "Activate or deactivate specific game object",
             format: $"{nameof(set_active)} <str: gameObjectName> <bool: isTrue>",
@@ -356,7 +340,7 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        get_attribute_of = new GameConsoleCommand<string, string>(
+        GameConsoleCommand<string, string> get_attribute_of = new GameConsoleCommand<string, string>(
             id: $"{nameof(get_attribute_of)}",
             description: "Find a game object by name and get it's attribute value",
             format: $"{nameof(get_attribute_of)} <str: gameObjectName> <str: attributeName>",
@@ -383,7 +367,7 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        set_attribute_of = new GameConsoleCommand<string, string, string>(
+        GameConsoleCommand<string, string, string> set_attribute_of = new GameConsoleCommand<string, string, string>(
             id: $"{nameof(set_attribute_of)}",
             description: "Find a game object by name and set it's attribute value",
             format: $"{nameof(set_attribute_of)} <str: gameObjectName> <str: attributeName> <obj: attributeValue>",
@@ -414,7 +398,7 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        get_admitted_attribute_names = new GameConsoleCommand(
+        GameConsoleCommand get_admitted_attribute_names = new GameConsoleCommand(
             id: $"{nameof(get_admitted_attribute_names)}",
             description: "Get the GameObject type's admitted attribute names",
             format: $"{nameof(get_admitted_attribute_names)}",
@@ -427,7 +411,7 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        get_command_ids = new GameConsoleCommand(
+        GameConsoleCommand get_command_ids = new GameConsoleCommand(
             id: $"{nameof(get_command_ids)}",
             description: "Get all command ids",
             format: $"{nameof(get_command_ids)}",
@@ -440,7 +424,7 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        set_timescale = new GameConsoleCommand<string>(
+        GameConsoleCommand<string> set_timescale = new GameConsoleCommand<string>(
             id: $"{nameof(set_timescale)}",
             description: "Set the scale at which time passes",
             format: $"{nameof(set_timescale)} <flt: timeScale>",
@@ -460,16 +444,25 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        //  GameConsoleCommand<string, string, string> set_as_timed;
-
-        set_as_timed = new GameConsoleCommand<string, string, string>(
+        GameConsoleCommand<string, string, string> set_as_timed = new GameConsoleCommand<string, string, string>(
             id: $"{nameof(set_as_timed)}",
-            description: "Set a command as a timed command",
+            description: "Set a command as an active timed command",
             format: $"{nameof(set_as_timed)} <flt: callTime>, <flt: stopTime>, <cmd: command>",
             examples: new string[] { $"{nameof(set_as_timed)} \"1\" \"10\" {{ {nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\" }}" });
         set_as_timed.Action = (callTime, stopTime, command) =>
         {
-            string foundCommandId = command.GetFirstWord();
+            foreach (var v in commandInputWrappers)
+            {
+                if (command.StartsWith(v.Item1) && command.EndsWith(v.Item2))
+                {
+                    command = command.Substring(v.Item1.ToString().Length, command.Length - v.Item1.ToString().Length - v.Item2.ToString().Length);
+                    break;
+                }
+            }
+            command = command.Trim();
+
+            string foundCommandId = command.GetFirstWord().Replace(generalInputWrappers[0].ToString(),
+                string.Empty).Replace(generalInputWrappers[1].ToString(), string.Empty);
 
             GameConsoleType<float> callTimeType = GameConsoleConvert.ToFloat(callTime);
             GameConsoleType<float> stopTimeType = GameConsoleConvert.ToFloat(stopTime);
@@ -489,7 +482,7 @@ public class GameConsole : MonoBehaviour
                 if (foundCommand != null)
                 {
                     int foundCommandsParametersAmount = foundCommand.GetParametersAmount();
-                    string[] inputArguments = command.GetArguments(foundCommandId, new char[] { '\"', '\'' });
+                    string[] inputArguments = command.GetArguments(foundCommandId, generalInputWrappers);
 
                     if (foundCommandsParametersAmount == 0 || foundCommandsParametersAmount == inputArguments.Length)
                     {
@@ -520,6 +513,7 @@ public class GameConsole : MonoBehaviour
                         if (timedCommand != null)
                         {
                             timedCommandCallerCommands.AddIfUniqueCommand(timedCommand);
+                            Print($"Set {foundCommandId.AsBold()} as an active timed command", ConsoleOutputType.Explanation);
                         }
                         else
                         {
@@ -540,25 +534,64 @@ public class GameConsole : MonoBehaviour
 
         GameConsoleCommand<string> stop_timed = new GameConsoleCommand<string>(
             id: $"{nameof(stop_timed)}",
-            description: "Stop a timed command",
+            description: "Stop an active timed command",
             format: $"{nameof(stop_timed)} <str: commandId>",
-            examples: new string[] { $"{nameof(stop_timed)} \"{nameof(set_attribute_of)}\"" });
+            examples: new string[] { $"{nameof(stop_timed)} \">all\"" });
         stop_timed.Action = (commandId) =>
         {
-            TimedCommandCallerCommand timedCommand = timedCommandCallerCommands.FirstOrDefault(c => c.Command.CommandId == commandId);
-            
-            if (timedCommand != null)
+            if (commandId.ToLower() == ">all")
             {
-                timedCommandCallerCommands.Remove(timedCommand);
-                Print($"Stopped the timed command {timedCommand.Command.CommandId.AsBold()}", ConsoleOutputType.Explanation);
+                if (timedCommandCallerCommands.Count > 0)
+                {
+                    timedCommandCallerCommands.Clear();
+                    Print($"Stopped all the active timed commands", ConsoleOutputType.Explanation);
+                }
+                else
+                {
+                    Print($"No active timed commands to stop", ConsoleOutputType.Error);
+                }
             }
             else
             {
-                PrintNotFoundError("Timed command", commandId);
+                TimedCommandCallerCommand timedCommand = timedCommandCallerCommands.FirstOrDefault(c => c.Command.CommandId == commandId);
+
+                if (timedCommand != null)
+                {
+                    timedCommandCallerCommands.Remove(timedCommand);
+                    Print($"Stopped the active timed command {timedCommand.Command.CommandId.AsBold()}", ConsoleOutputType.Explanation);
+                }
+                else
+                {
+                    PrintNotFoundError("Timed command", commandId);
+                }
             }
         };
 
-        set_test_object_position = new GameConsoleCommand<string>(
+        GameConsoleCommand get_all_timed = new GameConsoleCommand(
+            id: $"{nameof(get_all_timed)}",
+            description: "Get all the active timed commands",
+            format: $"{nameof(get_all_timed)}",
+            examples: new string[] { $"{nameof(get_all_timed)}" });
+        get_all_timed.Action = () =>
+        {
+            if (timedCommandCallerCommands.Count > 0)
+            {
+                int i = 0;
+                foreach (TimedCommandCallerCommand timedCommandCallerCommand in timedCommandCallerCommands)
+                {
+                    DateTime endTime = timedCommandCallerCommand.CreationTime.AddSeconds(timedCommandCallerCommand.DisableAfter);
+                    Print($"{i + 1}. {timedCommandCallerCommand.Command.CommandId.AsBold()} (started {timedCommandCallerCommand.CreationTime.ToString("T")}, " +
+                        $"ends {endTime.ToString("T")})", ConsoleOutputType.Explanation);
+                    i++;
+                }
+            }
+            else
+            {
+                Print($"No active timed commands found", ConsoleOutputType.Error);
+            }
+        };
+
+        GameConsoleCommand<string> set_test_object_position = new GameConsoleCommand<string>(
             id: $"{nameof(set_test_object_position)}",
             description: "Set test object position",
             format: $"{nameof(set_test_object_position)} <v3: position>",
@@ -614,6 +647,7 @@ public class GameConsole : MonoBehaviour
             set_timescale,
             set_as_timed,
             stop_timed,
+            get_all_timed,
 
             set_test_object_position,
         });
@@ -806,6 +840,7 @@ public class GameConsole : MonoBehaviour
     bool canScrollSuggestions = true;
     bool canCompleteSuggestion = true;
     bool showInputHistorySuggestion = false;
+    int delayedSelectionIndex = -1;
     int delayedCaretIndex = -1;
     bool selectNewParagraph = false;
 
@@ -834,21 +869,34 @@ public class GameConsole : MonoBehaviour
         // Handle wrapper removal logic
         int caretIndex = textEditor.GetCaretIndex();
 
-        bool caretIndexSurroundedWithWrappers = false;
-        bool caretIndexSurroundedWithTooManyWrappers = false;
-        bool dontAddWrappers = false;
+        bool caretIndexSurroundedWithGeneralWrappers = false;
+        bool caretIndexSurroundedWithTooManyGeneralWrappers = false;
+        bool dontAddGeneralWrappers = false;
+        
+        bool caretIndexSurroundedWithCommandWrappers = false;
+        bool dontAddCommandWrappers = false;
+
         bool pressedBackspace = false;
 
-        if (caretIndex > 0 && (input.GetCharAt(caretIndex - 1) == '\"' && input.GetCharAt(caretIndex) == '\"'
-            || input.GetCharAt(caretIndex - 1) == '\'' && input.GetCharAt(caretIndex) == '\''))
+        if (caretIndex > 0)
         {
-            caretIndexSurroundedWithWrappers = true;
-            dontAddWrappers = true;
-
-            if (input.GetCharAt(caretIndex - 2) == '\"' || input.GetCharAt(caretIndex + 1) == '\"'
-                || input.GetCharAt(caretIndex - 2) == '\'' || input.GetCharAt(caretIndex + 1) == '\'')
+            if (input.GetCharAt(caretIndex - 1) == generalInputWrappers[0] && input.GetCharAt(caretIndex) == generalInputWrappers[0]
+                || input.GetCharAt(caretIndex - 1) == generalInputWrappers[1] && input.GetCharAt(caretIndex) == generalInputWrappers[1])
             {
-                caretIndexSurroundedWithTooManyWrappers = true;
+                caretIndexSurroundedWithGeneralWrappers = true;
+                dontAddGeneralWrappers = true;
+
+                if (input.GetCharAt(caretIndex - 2) == generalInputWrappers[0] || input.GetCharAt(caretIndex + 1) == generalInputWrappers[0]
+                    || input.GetCharAt(caretIndex - 2) == generalInputWrappers[1] || input.GetCharAt(caretIndex + 1) == generalInputWrappers[1])
+                {
+                    caretIndexSurroundedWithTooManyGeneralWrappers = true;
+                }
+            }
+            else if (input.GetCharAt(caretIndex - 2) == commandInputWrappers[0].Item1 && input.GetCharAt(caretIndex + 1) == commandInputWrappers[0].Item2
+                && input.GetCharAt(caretIndex - 1) == ' ' && input.GetCharAt(caretIndex) == ' ')
+            {
+                caretIndexSurroundedWithCommandWrappers = true;
+                dontAddCommandWrappers = true;
             }
         }
         // ----------
@@ -857,20 +905,38 @@ public class GameConsole : MonoBehaviour
         {
             if (Event.current.keyCode == KeyCode.Backspace)
             {
-                if (canRemoveWrappersWithBackspace && caretIndexSurroundedWithWrappers && !caretIndexSurroundedWithTooManyWrappers)
+                if (canRemoveWrappersWithBackspace)
                 {
-                    input = input.Remove(caretIndex - 1, 2);
-                    textEditor.SetCaretIndex(caretIndex - 1);
-                    Event.current.keyCode = KeyCode.None;
+                    bool removedWrappers = false;
+
+                    if (caretIndexSurroundedWithGeneralWrappers && !caretIndexSurroundedWithTooManyGeneralWrappers)
+                    {
+                        input = input.Remove(caretIndex - 1, 2);
+                        textEditor.SetCaretIndex(caretIndex - 1);
+                        removedWrappers = true;
+                    }
+                    else if (caretIndexSurroundedWithCommandWrappers)
+                    {
+                        input = input.Remove(caretIndex - 2, 4);
+                        textEditor.SetCaretIndex(caretIndex - 2);
+                        removedWrappers = true;
+                    }
+
+                    if (removedWrappers)
+                    {
+                        Event.current.keyCode = KeyCode.None;
+                    }
                 }
 
-                dontAddWrappers = true;
+                dontAddGeneralWrappers = true;
+                dontAddCommandWrappers = true;
                 canRemoveWrappersWithBackspace = false;
                 pressedBackspace = true;
             }
             else if (Event.current.control && (Event.current.keyCode == KeyCode.X || Event.current.keyCode == KeyCode.V))
             {
-                dontAddWrappers = true;
+                dontAddGeneralWrappers = true;
+                dontAddCommandWrappers = true;
             }
         }
 
@@ -899,7 +965,8 @@ public class GameConsole : MonoBehaviour
                                 currentInputHistoryIndex = inputs.Count;
                                 inputSuggestion = string.Empty;
                                 showInputHistorySuggestion = false;
-                                dontAddWrappers = true;
+                                dontAddGeneralWrappers = true;
+                                dontAddCommandWrappers = true;
                                 showSuggestions = false;
                             }
                         }
@@ -976,7 +1043,8 @@ public class GameConsole : MonoBehaviour
                                     textEditor.SetCaretIndex(input.Length);
                                     currentSuggestionIndex = 0;
                                     currentSuggestion = string.Empty;
-                                    dontAddWrappers = true;
+                                    dontAddGeneralWrappers = true;
+                                    dontAddCommandWrappers = true;
                                 }
                             }
                             break;
@@ -1023,6 +1091,13 @@ public class GameConsole : MonoBehaviour
 
         GUI.FocusControl("InputField");
 
+        if (delayedSelectionIndex > -1)
+        {
+            textEditor.selectIndex = delayedSelectionIndex;
+
+            delayedSelectionIndex = -1;
+        }
+
         if (delayedCaretIndex > -1)
         {
             if (selectNewParagraph)
@@ -1043,46 +1118,8 @@ public class GameConsole : MonoBehaviour
         // On input change
         if (input != previousInput)
         {
-            caretIndex = textEditor.GetCaretIndex();
-
-            if (!dontAddWrappers)
-            {
-                // Handle wrapper addition logic
-                if (selectedTextBeforeTextFieldUpdate.Length > 0)
-                {
-                    int selectIndex = textEditor.selectIndex;
-
-                    if (selectIndex > 0)
-                    {
-                        char foundChar = input.TryGetWrapperAt(selectIndex - 1, new char[] { '"', '\'' });
-
-                        if (foundChar != '\0')
-                        {
-                            input = input.Remove(selectIndex - 1, 1).Insert(selectIndex - 1, selectedTextBeforeTextFieldUpdate.WrapWith(foundChar.ToString(), foundChar.ToString()));
-
-                            delayedCaretIndex = selectIndex + selectedTextBeforeTextFieldUpdate.Length;
-                            selectNewParagraph = true;
-                        }
-                    }
-                }
-                else if (caretIndex > 0)
-                {
-                    char foundChar = input.TryGetWrapperAt(caretIndex - 1, new char[] { '"', '\'' });
-
-                    if (foundChar != '\0')
-                    {
-                        input = input.Remove(caretIndex - 1, 1).AddWrappersTo(caretIndex - 1, foundChar.ToString(), foundChar.ToString());
-                    }
-                }
-                // ----------
-            }
-            else if (caretIndex > 0 && caretIndexSurroundedWithWrappers && !pressedBackspace)
-            {
-                if (input.TryGetWrapperAt(caretIndex - 1, new char[] { '"', '\'' }) != '\0')
-                {
-                    input = input.Remove(caretIndex - 1, 1);
-                }
-            }
+            HandleWrappersAddition(ref input, textEditor, selectedTextBeforeTextFieldUpdate, ref delayedCaretIndex, ref delayedSelectionIndex, ref selectNewParagraph,
+                dontAddGeneralWrappers, dontAddCommandWrappers, caretIndexSurroundedWithGeneralWrappers, caretIndexSurroundedWithCommandWrappers, pressedBackspace);
 
             currentSuggestionIndex = 0;
 
@@ -1095,6 +1132,130 @@ public class GameConsole : MonoBehaviour
 
 
             justActivated = false;
+        }
+    }
+
+    [RelatedTo(nameof(HandleInputField), RelationTargetType.Method)]
+    private void HandleWrappersAddition(ref string input, TextEditor textEditor, string selectedTextBeforeTextFieldUpdate, ref int delayedCaretIndex,
+        ref int delayedSelectionIndex, ref bool selectNewParagraph, bool dontAddGeneralWrappers, bool dontAddCommandWrappers, bool caretIndexSurroundedWithGeneralWrappers,
+        bool caretIndexSurroundedWithCommandWrappers, bool pressedBackspace)
+    {
+        int caretIndex = textEditor.GetCaretIndex();
+
+        if (!dontAddGeneralWrappers)
+        {
+            if (selectedTextBeforeTextFieldUpdate.Length > 0)
+            {
+                int selectIndex = textEditor.selectIndex;
+
+                if (selectIndex > 0)
+                {
+                    string firstWrapper = string.Empty, secondWrapper = string.Empty;
+                    int fixedCaretIndex = -1, fixedSelectionIndex = -1;
+                    bool makeNewParagraphSelected = false;
+
+                    char foundChar = input[selectIndex - 1];
+                    if (generalInputWrappers.Contains(foundChar))
+                    {
+                        foreach (char generalInputWrapper in generalInputWrappers)
+                        {
+                            if (generalInputWrapper == foundChar)
+                            {
+                                firstWrapper = generalInputWrapper.ToString();
+                                secondWrapper = generalInputWrapper.ToString();
+                                fixedCaretIndex = selectIndex + selectedTextBeforeTextFieldUpdate.Length;
+                                makeNewParagraphSelected = true;
+
+                                break;
+                            }
+                        }
+                    }
+                    else if (!dontAddCommandWrappers && commandInputWrappers.Select(c => c.Item1).Contains(foundChar))
+                    {
+                        foreach ((char, char) commandInputWrapper in commandInputWrappers)
+                        {
+                            if (commandInputWrapper.Item1 == foundChar)
+                            {
+                                firstWrapper = $"{commandInputWrapper.Item1} ";
+                                secondWrapper = $" {commandInputWrapper.Item2}";
+                                fixedCaretIndex = selectIndex + selectedTextBeforeTextFieldUpdate.Length + 1;
+                                fixedSelectionIndex = selectIndex + 1;
+                                makeNewParagraphSelected = true;
+
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(firstWrapper) && !string.IsNullOrEmpty(secondWrapper))
+                    {
+                        input = input.Remove(selectIndex - 1, 1).Insert(selectIndex - 1, selectedTextBeforeTextFieldUpdate.WrapWith(firstWrapper, secondWrapper));
+
+                        delayedCaretIndex = fixedCaretIndex != -1 ? fixedCaretIndex : delayedCaretIndex;
+                        delayedSelectionIndex = fixedSelectionIndex != -1 ? fixedSelectionIndex : delayedSelectionIndex;
+                        selectNewParagraph = makeNewParagraphSelected;
+                    }
+                }
+            }
+            else if (caretIndex > 0)
+            {
+                string firstWrapper = string.Empty, secondWrapper = string.Empty;
+                int fixedCaretIndex = -1;
+
+                char foundChar = input[caretIndex - 1];
+                if (generalInputWrappers.Contains(foundChar))
+                {
+                    foreach (char generalInputWrapper in generalInputWrappers)
+                    {
+                        if (generalInputWrapper == foundChar)
+                        {
+                            firstWrapper = generalInputWrapper.ToString();
+                            secondWrapper = generalInputWrapper.ToString();
+
+                            break;
+                        }
+                    }
+                }
+                else if (!dontAddCommandWrappers && commandInputWrappers.Select(c => c.Item1).Contains(foundChar))
+                {
+                    foreach ((char, char) commandInputWrapper in commandInputWrappers)
+                    {
+                        if (commandInputWrapper.Item1 == foundChar)
+                        {
+                            firstWrapper = $"{commandInputWrapper.Item1} ";
+                            secondWrapper = $" {commandInputWrapper.Item2}";
+                            fixedCaretIndex = caretIndex + 1;
+
+                            break;
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(firstWrapper) && !string.IsNullOrEmpty(secondWrapper))
+                {
+                    input = input.Remove(caretIndex - 1, 1).Insert(caretIndex - 1, $"{firstWrapper}{secondWrapper}");
+
+                    delayedCaretIndex = fixedCaretIndex != -1 ? fixedCaretIndex : delayedCaretIndex;
+                }
+            }
+        }
+        
+        if (caretIndex > 0 && !pressedBackspace)
+        {
+            // Disable adding many wrappers in a row
+
+            char foundChar = input[caretIndex - 1];
+
+            if (dontAddGeneralWrappers && caretIndexSurroundedWithGeneralWrappers && generalInputWrappers.Contains(foundChar))
+            {
+                input = input.Remove(caretIndex - 1, 1);
+                delayedCaretIndex = caretIndex - 1;
+            }
+            else if (dontAddCommandWrappers && caretIndexSurroundedWithCommandWrappers && commandInputWrappers.Select(c => c.Item1).Contains(foundChar))
+            {
+                input = input.Remove(caretIndex - 1, 1);
+                delayedCaretIndex = caretIndex - 1;
+            }
         }
     }
 
@@ -1140,11 +1301,19 @@ public class GameConsole : MonoBehaviour
         string[] inputParts;
         if (input.ContainsAmountOf('\"') > 1 || input.ContainsAmountOf('\'') > 1)
         {
-            inputParts = input.SplitAllNonWrapped(' ', new char[] { '\"', '\'' });
+            inputParts = input.SplitAllNonWrapped(' ', generalInputWrappers);
         }
         else
         {
             inputParts = input.Split(' ');
+        }
+
+        foreach (var commandInputWrapper in commandInputWrappers)
+        {
+            if (inputParts.Contains(commandInputWrapper.Item1.ToString()) && inputParts.Contains(commandInputWrapper.Item2.ToString()))
+            {
+                inputParts = inputParts.CombineSplittedWrappedParts(new (char, char)[] { (commandInputWrapper.Item1, commandInputWrapper.Item2) });
+            }
         }
 
         int previousOutputsCount = outputs.Count;

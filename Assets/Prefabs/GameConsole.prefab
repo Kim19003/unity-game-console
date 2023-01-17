@@ -50,6 +50,7 @@ MonoBehaviour:
   defaultTextColor: {r: 1, g: 1, b: 1, a: 1}
   inputSuggestionTextColor: 8
   outputExplanationTextColor: 8
+  outputHighlightTextColor: 9
   outputWarningTextColor: 21
   outputErrorTextColor: 17
   outputBoxHeight: 200

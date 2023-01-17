@@ -10,6 +10,9 @@ namespace Assets.Scripts.Other
         public float Interval { get { return interval; } }
         private readonly float interval;
 
+        public float DisableAfter { get { return disableAfter; } }
+        private readonly float disableAfter;
+
         public object Action { get { return action; } }
         private readonly object action;
 
@@ -19,10 +22,14 @@ namespace Assets.Scripts.Other
         public TimedUnityAction TimedAction { get { return timedAction; } }
         private readonly TimedUnityAction timedAction;
 
+        public DateTime CreationTime { get { return creationTime; } }
+        private readonly DateTime creationTime;
+
         public TimedCommandCallerCommand(GameConsoleCommandBase command, float interval, float disableAfter, object action, string[] arguments = null)
         {
             this.command = command;
             this.interval = interval;
+            this.disableAfter = disableAfter;
             this.action = action;
             this.arguments = arguments ?? Array.Empty<string>();
 
@@ -44,6 +51,8 @@ namespace Assets.Scripts.Other
                         break;
                 }
             }, interval, disableAfter: disableAfter);
+
+            creationTime = DateTime.Now;
         }
     }
 }
