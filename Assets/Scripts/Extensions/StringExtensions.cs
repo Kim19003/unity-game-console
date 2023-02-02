@@ -251,5 +251,19 @@ namespace Assets.Scripts.Extensions
 
             return Array.Empty<string>();
         }
+
+        public static string RemoveCommandInputWrappers(this string input, (char, char)[] commandInputWrappers)
+        {
+            foreach (var commandInputWrapper in commandInputWrappers)
+            {
+                if (input.StartsWith(commandInputWrapper.Item1) && input.EndsWith(commandInputWrapper.Item2))
+                {
+                    input = input.Substring(commandInputWrapper.Item1.ToString().Length, input.Length - commandInputWrapper.Item1.ToString().Length - commandInputWrapper.Item2.ToString().Length);
+                    break;
+                }
+            }
+            
+            return input.Trim();
+        }
     }
 }

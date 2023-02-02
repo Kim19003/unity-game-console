@@ -1,3 +1,10 @@
+2.2.2023
+
+❌ In-command suggestions
+✔️ "set_alias" command: you can call inputs with aliases (<str: alias>, <str: input>)
+✔️ Include aliases in command input suggestions?
+
+
 11.1.2023
 
 ✔️ Timed Command calling (make a new class for them?)

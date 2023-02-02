@@ -7,6 +7,14 @@ namespace Assets.Scripts.Extensions
 {
     public static class HashSetExtensions
     {
+        public static void AddRange<T>(this HashSet<T> hashSet, HashSet<T> items)
+        {
+            foreach (T item in items)
+            {
+                hashSet.Add(item);
+            }
+        }
+
         public static void ClearAndFill<T>(this HashSet<T> hashSet, T[] items)
         {
             hashSet.Clear();

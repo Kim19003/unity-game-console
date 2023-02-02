@@ -4,12 +4,10 @@ using Assets.Scripts.Other;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel.Design;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using UnityEditor.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.SocialPlatforms;
 using Color = UnityEngine.Color;
 using GameConsoleConvert = Assets.Scripts.Other.GameConsoleConvert;
 using TextEditor = UnityEngine.TextEditor;
@@ -76,6 +74,7 @@ public class GameConsole : MonoBehaviour
     private bool canDeactivateConsole = false;
 
     private readonly HashSet<TimedCommandCallerCommand> timedCommandCallerCommands = new HashSet<TimedCommandCallerCommand>();
+    private readonly Dictionary<string, string> aliases = new Dictionary<string, string>();
     #endregion
 
     private void Awake()
@@ -370,7 +369,7 @@ public class GameConsole : MonoBehaviour
         GameConsoleCommand<string, string, string> set_attribute_of = new GameConsoleCommand<string, string, string>(
             id: $"{nameof(set_attribute_of)}",
             description: "Find a game object by name and set it's attribute value",
-            format: $"{nameof(set_attribute_of)} <str: gameObjectName> <str: attributeName> <obj: attributeValue>",
+            format: $"{nameof(set_attribute_of)} <str: gameObjectName> <str: attributeName> <any: attributeValue>",
             examples: new string[] { $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\"" });
         set_attribute_of.Action = (gameObjectName, attributeName, attributeValue) =>
         {
@@ -447,19 +446,11 @@ public class GameConsole : MonoBehaviour
         GameConsoleCommand<string, string, string> set_as_timed = new GameConsoleCommand<string, string, string>(
             id: $"{nameof(set_as_timed)}",
             description: "Set a command as an active timed command",
-            format: $"{nameof(set_as_timed)} <flt: callTime>, <flt: stopTime>, <cmd: command>",
+            format: $"{nameof(set_as_timed)} <flt: callTime> <flt: stopTime> <cmd: command>",
             examples: new string[] { $"{nameof(set_as_timed)} \"1\" \"10\" {{ {nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\" }}" });
         set_as_timed.Action = (callTime, stopTime, command) =>
         {
-            foreach (var v in commandInputWrappers)
-            {
-                if (command.StartsWith(v.Item1) && command.EndsWith(v.Item2))
-                {
-                    command = command.Substring(v.Item1.ToString().Length, command.Length - v.Item1.ToString().Length - v.Item2.ToString().Length);
-                    break;
-                }
-            }
-            command = command.Trim();
+            command = command.RemoveCommandInputWrappers(commandInputWrappers);
 
             string foundCommandId = command.GetFirstWord().Replace(generalInputWrappers[0].ToString(),
                 string.Empty).Replace(generalInputWrappers[1].ToString(), string.Empty);
@@ -591,40 +582,90 @@ public class GameConsole : MonoBehaviour
             }
         };
 
-        GameConsoleCommand<string> set_test_object_position = new GameConsoleCommand<string>(
-            id: $"{nameof(set_test_object_position)}",
-            description: "Set test object position",
-            format: $"{nameof(set_test_object_position)} <v3: position>",
-            examples: new string[] { $"{nameof(set_test_object_position)} \"(1, 1, 0)\"" });
-        set_test_object_position.Action = (position) =>
+        GameConsoleCommand<string, string> set_alias = new GameConsoleCommand<string, string>(
+            id: $"{nameof(set_alias)}",
+            description: "Set alias",
+            format: $"{nameof(set_alias)} <str: alias> <any: content>",
+            examples: new string[] { $"{nameof(set_alias)} \"h\" {{ help }}" });
+        set_alias.Action = (alias, content) =>
         {
-            GameObject testObject = GameObject.Find("Test");
-
-            if (testObject != null)
+            if (!alias.Contains(" "))
             {
-                TestObject testObjectScript = testObject.GetComponent<TestObject>();
-
-                if (testObjectScript != null)
+                if (!commands.Cast<GameConsoleCommandBase>().Any(c => c.CommandId == alias))
                 {
-                    GameConsoleType<Vector3> gameConsoleType = GameConsoleConvert.ToVector3(position);
-                    if (gameConsoleType != null)
+                    content = content.RemoveCommandInputWrappers(commandInputWrappers);
+                    
+                    if (!aliases.ContainsKey(alias))
                     {
-                        testObjectScript.SetPosition(gameConsoleType.Value);
-                        Print($"{testObject.transform.name}'s position is now {testObject.transform.position}", ConsoleOutputType.Explanation);
+                        aliases.Add(alias, content);
                     }
                     else
                     {
-                        PrintIncorrectTypeError("Argument", nameof(position));
+                        aliases[alias] = content;
                     }
+
+                    Print($"{alias.AsBold()} -> {{ {content} }}", ConsoleOutputType.Explanation);
                 }
                 else
                 {
-                    PrintNotFoundError("Script", "TestObject");
+                    Print($"Alias can't be the same as any of the command ids", ConsoleOutputType.Error);
                 }
             }
             else
             {
-                PrintNotFoundError("Game object", "Test");
+                Print($"Alias can't contain spaces", ConsoleOutputType.Error);
+            }
+        };
+
+        GameConsoleCommand<string> remove_alias = new GameConsoleCommand<string>(
+            id: $"{nameof(remove_alias)}",
+            description: "Remove alias",
+            format: $"{nameof(remove_alias)} <str: alias>",
+            examples: new string[] { $"{nameof(remove_alias)} \">all\"" });
+        remove_alias.Action = (alias) =>
+        {
+            if (alias.ToLower() == ">all")
+            {
+                if (aliases.Count > 0)
+                {
+                    aliases.Clear();
+                    Print($"Removed all aliases", ConsoleOutputType.Explanation);
+                }
+                else
+                {
+                    Print($"No aliases to remove", ConsoleOutputType.Error);
+                }
+            }
+            else if (aliases.ContainsKey(alias))
+            {
+                aliases.Remove(alias);
+                Print($"Removed alias {alias.AsBold()}", ConsoleOutputType.Explanation);
+            }
+            else
+            {
+                PrintNotFoundError("Alias", alias);
+            }
+        };
+
+        GameConsoleCommand get_all_aliases = new GameConsoleCommand(
+            id: $"{nameof(get_all_aliases)}",
+            description: "Get all aliases",
+            format: $"{nameof(get_all_aliases)}",
+            examples: new string[] { $"{nameof(get_all_aliases)}" });
+        get_all_aliases.Action = () =>
+        {
+            if (aliases.Count > 0)
+            {
+                int i = 0;
+                foreach (var alias in aliases)
+                {
+                    Print($"{i + 1}. {alias.Key.AsBold()} -> {{ {alias.Value} }}", ConsoleOutputType.Explanation);
+                    i++;
+                }
+            }
+            else
+            {
+                Print($"No aliases found", ConsoleOutputType.Error);
             }
         };
 
@@ -648,8 +689,9 @@ public class GameConsole : MonoBehaviour
             set_as_timed,
             stop_timed,
             get_all_timed,
-
-            set_test_object_position,
+            set_alias,
+            remove_alias,
+            get_all_aliases,
         });
         #endregion
     }
@@ -1268,6 +1310,16 @@ public class GameConsole : MonoBehaviour
 
         if (!string.IsNullOrEmpty(input))
         {
+            foreach (var alias in aliases)
+            {
+                string suggestion = alias.Key;
+
+                if (suggestion.ToLower().StartsWith(input.ToLower()))
+                {
+                    commandInputSuggestions.Add(suggestion);
+                }
+            }
+            
             foreach (var gameConsoleCommand in commands.Cast<GameConsoleCommandBase>())
             {
                 string previousSameSuggestion = previousCommandInputSuggestions.FirstOrDefault(s => s == gameConsoleCommand.CommandId || s.StartsWith(gameConsoleCommand.CommandId + " "));
@@ -1297,6 +1349,12 @@ public class GameConsole : MonoBehaviour
     {
         inputs.Add(input);
         Print($">> {input}", ConsoleOutputType.Information);
+
+        string foundAliasContent = aliases.FirstOrDefault(a => a.Key == input).Value;
+        if (!string.IsNullOrEmpty(foundAliasContent))
+        {
+            input = foundAliasContent;
+        }
 
         string[] inputParts;
         if (input.ContainsAmountOf('\"') > 1 || input.ContainsAmountOf('\'') > 1)
