@@ -1,6 +1,11 @@
-2.2.2023
+4.2.2023
 
 ❌ In-command suggestions
+❌ Output text wrapping
+
+
+2.2.2023
+
 ✔️ "set_alias" command: you can call inputs with aliases (<str: alias>, <str: input>)
 ✔️ Include aliases in command input suggestions?
 
