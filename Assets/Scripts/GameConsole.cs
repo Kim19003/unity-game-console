@@ -8,6 +8,7 @@ using System.ComponentModel.Design;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using static UnityEditor.Progress;
 using Color = UnityEngine.Color;
 using GameConsoleConvert = Assets.Scripts.Other.GameConsoleConvert;
 using TextEditor = UnityEngine.TextEditor;
@@ -68,6 +69,7 @@ public class GameConsole : MonoBehaviour
     
     private readonly char[] generalInputWrappers = new char[] { '\"', '\'' };
     private readonly (char, char)[] commandInputWrappers = new (char, char)[] { ('{', '}') };
+    private readonly (char, char)[] objectInputWrappers = new (char, char)[] { ('(', ')') };
 
     private bool activated = false;
     private bool justActivated = false;
@@ -198,7 +200,7 @@ public class GameConsole : MonoBehaviour
             id: $"{nameof(help_of)}",
             description: "Show information about a command",
             format: $"{nameof(help_of)} <str: commandId>",
-            examples: new string[] { $"{nameof(help_of)} \"{nameof(help)}\"" });
+            examples: new string[] { $"{nameof(help_of)} {nameof(help)}" });
         help_of.Action = (commandId) =>
         {
             GameConsoleCommandBase command = commands.Cast<GameConsoleCommandBase>().FirstOrDefault(c => c.CommandId == commandId);
@@ -343,7 +345,7 @@ public class GameConsole : MonoBehaviour
             id: $"{nameof(get_attribute_of)}",
             description: "Find a game object by name and get it's attribute value",
             format: $"{nameof(get_attribute_of)} <str: gameObjectName> <str: attributeName>",
-            examples: new string[] { $"{nameof(get_attribute_of)} \"Player\" \"position\"" });
+            examples: new string[] { $"{nameof(get_attribute_of)} \"Player\" position" });
         get_attribute_of.Action = (gameObjectName, attributeName) =>
         {
             GameObject gameObject = GameObject.Find(gameObjectName);
@@ -370,7 +372,7 @@ public class GameConsole : MonoBehaviour
             id: $"{nameof(set_attribute_of)}",
             description: "Find a game object by name and set it's attribute value",
             format: $"{nameof(set_attribute_of)} <str: gameObjectName> <str: attributeName> <any: attributeValue>",
-            examples: new string[] { $"{nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\"" });
+            examples: new string[] { $"{nameof(set_attribute_of)} \"Player\" position (1, 1, 0)" });
         set_attribute_of.Action = (gameObjectName, attributeName, attributeValue) =>
         {
             GameObject gameObject = GameObject.Find(gameObjectName);
@@ -427,7 +429,7 @@ public class GameConsole : MonoBehaviour
             id: $"{nameof(set_timescale)}",
             description: "Set the scale at which time passes",
             format: $"{nameof(set_timescale)} <flt: timeScale>",
-            examples: new string[] { $"{nameof(set_timescale)} \"1\"" });
+            examples: new string[] { $"{nameof(set_timescale)} 1" });
         set_timescale.Action = (timeScale) =>
         {
             GameConsoleType<float> timeScaleType = GameConsoleConvert.ToFloat(timeScale);
@@ -447,7 +449,7 @@ public class GameConsole : MonoBehaviour
             id: $"{nameof(set_as_timed)}",
             description: "Set a command as an active timed command",
             format: $"{nameof(set_as_timed)} <flt: callTime> <flt: stopTime> <cmd: command>",
-            examples: new string[] { $"{nameof(set_as_timed)} \"1\" \"10\" {{ {nameof(set_attribute_of)} \"Player\" \"position\" \"(1, 1, 0)\" }}" });
+            examples: new string[] { $"{nameof(set_as_timed)} 1 10 {{ {nameof(set_attribute_of)} \"Player\" position (1, 1, 0) }}" });
         set_as_timed.Action = (callTime, stopTime, command) =>
         {
             command = command.RemoveCommandInputWrappers(commandInputWrappers);
@@ -527,7 +529,7 @@ public class GameConsole : MonoBehaviour
             id: $"{nameof(stop_timed)}",
             description: "Stop an active timed command",
             format: $"{nameof(stop_timed)} <str: commandId>",
-            examples: new string[] { $"{nameof(stop_timed)} \">all\"" });
+            examples: new string[] { $"{nameof(stop_timed)} >all" });
         stop_timed.Action = (commandId) =>
         {
             if (commandId.ToLower() == ">all")
@@ -621,7 +623,7 @@ public class GameConsole : MonoBehaviour
             id: $"{nameof(remove_alias)}",
             description: "Remove alias",
             format: $"{nameof(remove_alias)} <str: alias>",
-            examples: new string[] { $"{nameof(remove_alias)} \">all\"" });
+            examples: new string[] { $"{nameof(remove_alias)} >all" });
         remove_alias.Action = (alias) =>
         {
             if (alias.ToLower() == ">all")
@@ -918,6 +920,9 @@ public class GameConsole : MonoBehaviour
         bool caretIndexSurroundedWithCommandWrappers = false;
         bool dontAddCommandWrappers = false;
 
+        bool caretIndexSurroundedWithObjectWrappers = false;
+        bool dontAddObjectWrappers = false;
+
         bool pressedBackspace = false;
 
         if (caretIndex > 0)
@@ -939,6 +944,11 @@ public class GameConsole : MonoBehaviour
             {
                 caretIndexSurroundedWithCommandWrappers = true;
                 dontAddCommandWrappers = true;
+            }
+            else if (input.GetCharAt(caretIndex - 1) == objectInputWrappers[0].Item1 && input.GetCharAt(caretIndex) == objectInputWrappers[0].Item2)
+            {
+                caretIndexSurroundedWithObjectWrappers = true;
+                dontAddObjectWrappers = true;
             }
         }
         // ----------
@@ -963,6 +973,12 @@ public class GameConsole : MonoBehaviour
                         textEditor.SetCaretIndex(caretIndex - 2);
                         removedWrappers = true;
                     }
+                    else if (caretIndexSurroundedWithObjectWrappers)
+                    {
+                        input = input.Remove(caretIndex - 1, 2);
+                        textEditor.SetCaretIndex(caretIndex - 1);
+                        removedWrappers = true;
+                    }
 
                     if (removedWrappers)
                     {
@@ -972,6 +988,7 @@ public class GameConsole : MonoBehaviour
 
                 dontAddGeneralWrappers = true;
                 dontAddCommandWrappers = true;
+                dontAddObjectWrappers = true;
                 canRemoveWrappersWithBackspace = false;
                 pressedBackspace = true;
             }
@@ -979,6 +996,7 @@ public class GameConsole : MonoBehaviour
             {
                 dontAddGeneralWrappers = true;
                 dontAddCommandWrappers = true;
+                dontAddObjectWrappers = true;
             }
         }
 
@@ -1009,6 +1027,7 @@ public class GameConsole : MonoBehaviour
                                 showInputHistorySuggestion = false;
                                 dontAddGeneralWrappers = true;
                                 dontAddCommandWrappers = true;
+                                dontAddObjectWrappers = true;
                                 showSuggestions = false;
                             }
                         }
@@ -1087,6 +1106,7 @@ public class GameConsole : MonoBehaviour
                                     currentSuggestion = string.Empty;
                                     dontAddGeneralWrappers = true;
                                     dontAddCommandWrappers = true;
+                                    dontAddObjectWrappers = true;
                                 }
                             }
                             break;
@@ -1161,7 +1181,8 @@ public class GameConsole : MonoBehaviour
         if (input != previousInput)
         {
             HandleWrappersAddition(ref input, textEditor, selectedTextBeforeTextFieldUpdate, ref delayedCaretIndex, ref delayedSelectionIndex, ref selectNewParagraph,
-                dontAddGeneralWrappers, dontAddCommandWrappers, caretIndexSurroundedWithGeneralWrappers, caretIndexSurroundedWithCommandWrappers, pressedBackspace);
+                dontAddGeneralWrappers, dontAddCommandWrappers, dontAddObjectWrappers, caretIndexSurroundedWithGeneralWrappers, caretIndexSurroundedWithCommandWrappers,
+                caretIndexSurroundedWithObjectWrappers, pressedBackspace);
 
             currentSuggestionIndex = 0;
 
@@ -1179,8 +1200,8 @@ public class GameConsole : MonoBehaviour
 
     [RelatedTo(nameof(HandleInputField), RelationTargetType.Method)]
     private void HandleWrappersAddition(ref string input, TextEditor textEditor, string selectedTextBeforeTextFieldUpdate, ref int delayedCaretIndex,
-        ref int delayedSelectionIndex, ref bool selectNewParagraph, bool dontAddGeneralWrappers, bool dontAddCommandWrappers, bool caretIndexSurroundedWithGeneralWrappers,
-        bool caretIndexSurroundedWithCommandWrappers, bool pressedBackspace)
+        ref int delayedSelectionIndex, ref bool selectNewParagraph, bool dontAddGeneralWrappers, bool dontAddCommandWrappers, bool dontAddObjectWrappers,
+        bool caretIndexSurroundedWithGeneralWrappers, bool caretIndexSurroundedWithCommandWrappers, bool caretIndexSurroundedWithObjectWrappers, bool pressedBackspace)
     {
         int caretIndex = textEditor.GetCaretIndex();
 
@@ -1222,6 +1243,21 @@ public class GameConsole : MonoBehaviour
                                 secondWrapper = $" {commandInputWrapper.Item2}";
                                 fixedCaretIndex = selectIndex + selectedTextBeforeTextFieldUpdate.Length + 1;
                                 fixedSelectionIndex = selectIndex + 1;
+                                makeNewParagraphSelected = true;
+
+                                break;
+                            }
+                        }
+                    }
+                    else if (!dontAddObjectWrappers && objectInputWrappers.Select(c => c.Item1).Contains(foundChar))
+                    {
+                        foreach ((char, char) objectInputWrapper in objectInputWrappers)
+                        {
+                            if (objectInputWrapper.Item1 == foundChar)
+                            {
+                                firstWrapper = objectInputWrapper.Item1.ToString();
+                                secondWrapper = objectInputWrapper.Item2.ToString();
+                                fixedCaretIndex = selectIndex + selectedTextBeforeTextFieldUpdate.Length;
                                 makeNewParagraphSelected = true;
 
                                 break;
@@ -1272,6 +1308,19 @@ public class GameConsole : MonoBehaviour
                         }
                     }
                 }
+                else if (!dontAddObjectWrappers && objectInputWrappers.Select(c => c.Item1).Contains(foundChar))
+                {
+                    foreach ((char, char) objectInputWrapper in objectInputWrappers)
+                    {
+                        if (objectInputWrapper.Item1 == foundChar)
+                        {
+                            firstWrapper = objectInputWrapper.Item1.ToString();
+                            secondWrapper = objectInputWrapper.Item2.ToString();
+
+                            break;
+                        }
+                    }
+                }
 
                 if (!string.IsNullOrEmpty(firstWrapper) && !string.IsNullOrEmpty(secondWrapper))
                 {
@@ -1286,14 +1335,18 @@ public class GameConsole : MonoBehaviour
         {
             // Disable adding many wrappers in a row
 
+            bool removeLastCharacter = false;
+
             char foundChar = input[caretIndex - 1];
 
-            if (dontAddGeneralWrappers && caretIndexSurroundedWithGeneralWrappers && generalInputWrappers.Contains(foundChar))
+            if (dontAddGeneralWrappers && caretIndexSurroundedWithGeneralWrappers && generalInputWrappers.Contains(foundChar)
+                || dontAddCommandWrappers && caretIndexSurroundedWithCommandWrappers && commandInputWrappers.Select(c => c.Item1).Contains(foundChar)
+                || dontAddObjectWrappers && caretIndexSurroundedWithObjectWrappers && objectInputWrappers.Select(c => c.Item1).Contains(foundChar))
             {
-                input = input.Remove(caretIndex - 1, 1);
-                delayedCaretIndex = caretIndex - 1;
+                removeLastCharacter = true;
             }
-            else if (dontAddCommandWrappers && caretIndexSurroundedWithCommandWrappers && commandInputWrappers.Select(c => c.Item1).Contains(foundChar))
+
+            if (removeLastCharacter)
             {
                 input = input.Remove(caretIndex - 1, 1);
                 delayedCaretIndex = caretIndex - 1;
@@ -1366,11 +1419,21 @@ public class GameConsole : MonoBehaviour
             inputParts = input.Split(' ');
         }
 
+        foreach (var objectInputWrapper in objectInputWrappers)
+        {
+            if (inputParts.Contains(objectInputWrapper.Item1.ToString()) && inputParts.Contains(objectInputWrapper.Item2.ToString())
+                || inputParts.Any(i => i.StartsWith(objectInputWrapper.Item1.ToString()) && !i.EndsWith(objectInputWrapper.Item2.ToString()))
+                && inputParts.Any(i => i.EndsWith(objectInputWrapper.Item2.ToString()) && !i.StartsWith(objectInputWrapper.Item1.ToString())))
+            {
+                inputParts = inputParts.CombineSplittedWrappedParts((objectInputWrapper.Item1.ToString(), objectInputWrapper.Item2.ToString()));
+            }
+        }
+
         foreach (var commandInputWrapper in commandInputWrappers)
         {
             if (inputParts.Contains(commandInputWrapper.Item1.ToString()) && inputParts.Contains(commandInputWrapper.Item2.ToString()))
             {
-                inputParts = inputParts.CombineSplittedWrappedParts(new (char, char)[] { (commandInputWrapper.Item1, commandInputWrapper.Item2) });
+                inputParts = inputParts.CombineSplittedCommandWrappedParts(new (char, char)[] { (commandInputWrapper.Item1, commandInputWrapper.Item2) });
             }
         }
 

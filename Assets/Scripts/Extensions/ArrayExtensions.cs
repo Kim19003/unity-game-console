@@ -18,7 +18,73 @@ namespace Assets.Scripts.Extensions
             return array == null || array.Length == 0;
         }
 
-        public static string[] CombineSplittedWrappedParts(this string[] splitted, (char Opening, char Closing)[] openingAndClosingWrapChars)
+        public static string[] CombineSplittedWrappedParts(this string[] splitted, (string Opening, string Closing) openingAndClosingWrappers)
+        {
+            List<string> splittedAsList = new List<string>(splitted);
+
+            List<int> removalIndexes = new List<int>();
+            List<string> combinedTexts = new List<string>();
+
+            List<string> combinedTextParts = new List<string>();
+            for (int i = 0; i < splittedAsList.Count; i++)
+            {
+                if (splittedAsList[i].StartsWith(openingAndClosingWrappers.Opening))
+                {
+                    removalIndexes.Add(i);
+                    combinedTextParts.Add(splittedAsList[i]);
+                }
+                else if (combinedTextParts.Count > 0)
+                {
+                    removalIndexes.Add(i);
+                    combinedTextParts.Add(splittedAsList[i]);
+
+                    if (splittedAsList[i].EndsWith(openingAndClosingWrappers.Closing))
+                    {
+                        combinedTexts.Add(string.Join(string.Empty, combinedTextParts));
+                        combinedTextParts.Clear();
+                    }
+                }
+            }
+
+            if (removalIndexes.Count > 0)
+            {
+                foreach (int removalIndex in removalIndexes)
+                {
+                    for (int i = 0; i < splittedAsList.Count; i++)
+                    {
+                        if (i == removalIndex)
+                        {
+                            bool consecutiveEndsAtNext = false;
+
+                            if (splittedAsList.Count <= (i + 1) || !removalIndexes.Contains(i + 1))
+                            {
+                                consecutiveEndsAtNext = true;
+                            }
+
+                            splittedAsList[i] = consecutiveEndsAtNext ? "{{{ADD_ME}}}" : "{{{REMOVE_ME}}}";
+                        }
+                    }
+                }
+
+                foreach (string combinedText in combinedTexts)
+                {
+                    for (int i = 0; i < splittedAsList.Count; i++)
+                    {
+                        if (splittedAsList[i] == "{{{ADD_ME}}}")
+                        {
+                            splittedAsList[i] = combinedText;
+                            break;
+                        }
+                    }
+                }
+
+                splittedAsList.RemoveAll(s => s == "{{{REMOVE_ME}}}");
+            }
+
+            return splittedAsList.ToArray();
+        }
+
+        public static string[] CombineSplittedCommandWrappedParts(this string[] splitted, (char Opening, char Closing)[] openingAndClosingWrapChars)
         {
             List<(int Index, int Amount, string BuiltString)> indexesWithAmountsAndBuiltString = new List<(int Index, int Amount, string BuiltString)>();
 
