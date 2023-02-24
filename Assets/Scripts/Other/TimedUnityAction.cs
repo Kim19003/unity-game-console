@@ -102,6 +102,8 @@ namespace Assets.Scripts.Other
                     nextActionCallTime = startDelay;
                 }
 
+                nextActionCallTime += interval;
+
                 startOver = false;
             }
 
