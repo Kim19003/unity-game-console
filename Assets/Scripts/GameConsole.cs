@@ -31,6 +31,11 @@ public class GameConsole : MonoBehaviour
     [Header("Output")]
     [SerializeField] private float outputBoxHeight = 200;
     [SerializeField] private int outputLabelHeight = 20;
+    [SerializeField] private bool outputLabelHasShadow = false;
+    [SerializeField] private int outputLabelShadowFontSize = 1;
+    [SerializeField] private Color outputLabelShadowColor = Color.black;
+    [SerializeField] private int outputLabelShadowPositionX = 1;
+    [SerializeField] private int outputLabelShadowPositionY = 1;
     [SerializeField] private Texture2D outputBoxBackgroundTexture;
     [SerializeField] private Color outputBoxBackgroundColor = Color.black;
     [SerializeField] private float outputBoxBackgroundColorAlpha = 1f;
@@ -44,6 +49,11 @@ public class GameConsole : MonoBehaviour
 
     [Header("Input")]
     [SerializeField] private int inputTextFieldHeight = 20;
+    [SerializeField] private bool inputTextHasShadow = false;
+    [SerializeField] private int inputTextShadowFontSize = 1;
+    [SerializeField] private Color inputTextShadowColor = Color.black;
+    [SerializeField] private int inputTextShadowPositionX = 1;
+    [SerializeField] private int inputTextShadowPositionY = 1;
     [SerializeField] private Texture2D inputBoxBackgroundTexture;
     [SerializeField] private Color inputBoxBackgroundColor = Color.black;
     [SerializeField] private float inputBoxBackgroundColorAlpha = 1f;
@@ -66,6 +76,7 @@ public class GameConsole : MonoBehaviour
     private GUIStyle outputBoxStyle, inputBoxStyle, outputBoxBorderStyle, inputBoxBorderStyle, outputLabelStyle, inputTextFieldStyle;
 
     private string input = string.Empty;
+    private string rawInput = string.Empty;
     
     private readonly char[] generalInputWrappers = new char[] { '\"', '\'' };
     private readonly (char, char)[] commandInputWrappers = new (char, char)[] { ('{', '}') };
@@ -87,41 +98,10 @@ public class GameConsole : MonoBehaviour
             font = Resources.GetBuiltinResource<Font>("Arial.ttf");
         }
 
-        if (outputBoxBackgroundTexture == null)
-        {
-            outputBoxBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(outputBoxBackgroundColor.r, outputBoxBackgroundColor.g, outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha));
-        }
-        else if (outputBoxBackgroundColorAlpha > 0)
-        {
-            outputBoxBackgroundTexture.FillWithColor(new Color(outputBoxBackgroundColor.r, outputBoxBackgroundColor.g, outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha));
-        }
-
-        if (inputBoxBackgroundTexture == null)
-        {
-            inputBoxBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(inputBoxBackgroundColor.r, inputBoxBackgroundColor.g, inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha));
-        }
-        else if (inputBoxBackgroundColorAlpha > 0)
-        {
-            inputBoxBackgroundTexture.FillWithColor(new Color(inputBoxBackgroundColor.r, inputBoxBackgroundColor.g, inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha));
-        }
-
-        if (outputBoxBorderBackgroundTexture == null)
-        {
-            outputBoxBorderBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(outputBoxBorderBackgroundColor.r, outputBoxBorderBackgroundColor.g, outputBoxBorderBackgroundColor.b, outputBoxBorderBackgroundColorAlpha));
-        }
-        else if (outputBoxBorderBackgroundColorAlpha > 0)
-        {
-            outputBoxBorderBackgroundTexture.FillWithColor(new Color(outputBoxBorderBackgroundColor.r, outputBoxBorderBackgroundColor.g, outputBoxBorderBackgroundColor.b, outputBoxBorderBackgroundColorAlpha));
-        }
-
-        if (inputBoxBorderBackgroundTexture == null)
-        {
-            inputBoxBorderBackgroundTexture = Helpers.MakeTexture(1, 1, new Color(inputBoxBorderBackgroundColor.r, inputBoxBorderBackgroundColor.g, inputBoxBorderBackgroundColor.b, inputBoxBorderBackgroundColorAlpha));
-        }
-        else if (inputBoxBorderBackgroundColorAlpha > 0)
-        {
-            inputBoxBorderBackgroundTexture.FillWithColor(new Color(inputBoxBorderBackgroundColor.r, inputBoxBorderBackgroundColor.g, inputBoxBorderBackgroundColor.b, inputBoxBorderBackgroundColorAlpha));
-        }
+        outputBoxBackgroundTexture = Helpers.MakeConsoleTexture(outputBoxBackgroundTexture, new Color(outputBoxBackgroundColor.r, outputBoxBackgroundColor.g, outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha));
+        outputBoxBorderBackgroundTexture = Helpers.MakeConsoleTexture(outputBoxBorderBackgroundTexture, new Color(outputBoxBorderBackgroundColor.r, outputBoxBorderBackgroundColor.g, outputBoxBorderBackgroundColor.b, outputBoxBorderBackgroundColorAlpha));
+        inputBoxBackgroundTexture = Helpers.MakeConsoleTexture(inputBoxBackgroundTexture, new Color(inputBoxBackgroundColor.r, inputBoxBackgroundColor.g, inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha));
+        inputBoxBorderBackgroundTexture = Helpers.MakeConsoleTexture(inputBoxBorderBackgroundTexture, new Color(inputBoxBorderBackgroundColor.r, inputBoxBorderBackgroundColor.g, inputBoxBorderBackgroundColor.b, inputBoxBorderBackgroundColorAlpha));
 
         outputBoxStyle = new GUIStyle()
         {
@@ -470,6 +450,8 @@ public class GameConsole : MonoBehaviour
             }
             else
             {
+                bool isOneTimeCall = callTimeType.Value > 0 && stopTimeType.Value > 0 && callTimeType.Value == stopTimeType.Value;
+
                 GameConsoleCommandBase foundCommand = commands.Cast<GameConsoleCommandBase>().FirstOrDefault(c => c.CommandId == foundCommandId);
 
                 if (foundCommand != null)
@@ -484,19 +466,19 @@ public class GameConsole : MonoBehaviour
                         {
                             case 0:
                                 timedCommand = new TimedCommandCallerCommand(foundCommand, callTimeType.Value, stopTimeType.Value,
-                                    ((GameConsoleCommand)foundCommand).Action);
+                                    ((GameConsoleCommand)foundCommand).Action, startDelay: isOneTimeCall ? callTimeType.Value : 0f);
                                 break;
                             case 1:
                                 timedCommand = new TimedCommandCallerCommand(foundCommand, callTimeType.Value, stopTimeType.Value,
-                                    ((GameConsoleCommand<string>)foundCommand).Action, inputArguments);
+                                    ((GameConsoleCommand<string>)foundCommand).Action, inputArguments, isOneTimeCall ? callTimeType.Value : 0f);
                                 break;
                             case 2:
                                 timedCommand = new TimedCommandCallerCommand(foundCommand, callTimeType.Value, stopTimeType.Value,
-                                    ((GameConsoleCommand<string, string>)foundCommand).Action, inputArguments);
+                                    ((GameConsoleCommand<string, string>)foundCommand).Action, inputArguments, isOneTimeCall ? callTimeType.Value : 0f);
                                 break;
                             case 3:
                                 timedCommand = new TimedCommandCallerCommand(foundCommand, callTimeType.Value, stopTimeType.Value,
-                                    ((GameConsoleCommand<string, string, string>)foundCommand).Action, inputArguments);
+                                    ((GameConsoleCommand<string, string, string>)foundCommand).Action, inputArguments, isOneTimeCall ? callTimeType.Value : 0f);
                                 break;
                             default:
                                 timedCommand = null;
@@ -783,7 +765,7 @@ public class GameConsole : MonoBehaviour
         }
 
         HandleOutputField(0, ref scrollViewViewRect, ref scrollViewScrollPosition);
-        HandleInputField(outputBoxHeight, ref input);
+        HandleInputField(outputBoxHeight, ref input, ref rawInput);
 
         switch (Event.current.keyCode)
         {
@@ -860,6 +842,24 @@ public class GameConsole : MonoBehaviour
                     newOutputText = output.Text.RemoveTags("color").AsColor(RichTextColor.White);
                     break;
             }
+
+            if (outputLabelHasShadow)
+            {
+                GUIStyle outputLabelShadowStyle = new GUIStyle()
+                {
+                    font = font,
+                    fontSize = fontSize + (outputLabelShadowFontSize - 1 > -1 ? outputLabelShadowFontSize - 1 : 0),
+                    richText = true,
+                    normal = new GUIStyleState()
+                    {
+                        textColor = outputLabelShadowColor
+                    }
+                };
+
+                GUI.Label(new Rect(borderedBoxContentPartRect.x + outputLabelMarginLeft + outputLabelShadowPositionX, outputPositionY + outputLabelShadowPositionY,
+                    borderedBoxContentPartRect.width, outputLabelHeight + outputLabelMarginBottom), newOutputText.RemoveTags("color"), outputLabelShadowStyle);
+            }
+
             GUI.Label(new Rect(borderedBoxContentPartRect.x + outputLabelMarginLeft, outputPositionY, borderedBoxContentPartRect.width,
                 outputLabelHeight + outputLabelMarginBottom), newOutputText, outputLabelStyle);
 
@@ -888,7 +888,7 @@ public class GameConsole : MonoBehaviour
     int delayedCaretIndex = -1;
     bool selectNewParagraph = false;
 
-    private void HandleInputField(float inputPositionY, ref string input)
+    private void HandleInputField(float inputPositionY, ref string input, ref string rawInput)
     {
         Rect borderedBoxContentPartRect = GUIExtensions.BorderedBox(new Rect(0, inputPositionY, Screen.width, inputTextFieldHeight + inputBoxHeightAdditionToTextField),
             string.Empty, inputBoxStyle, inputBoxBorderSize, inputBoxBorderStyle, BorderDirection.Left | BorderDirection.Right | BorderDirection.Bottom);
@@ -1141,15 +1141,32 @@ public class GameConsole : MonoBehaviour
 
         string selectedTextBeforeTextFieldUpdate = textEditor.SelectedText;
 
+        if (inputTextHasShadow)
+        {
+            GUIStyle inputTextShadowStyle = new GUIStyle()
+            {
+                font = font,
+                fontSize = fontSize + (inputTextShadowFontSize - 1 > -1 ? inputTextShadowFontSize - 1 : 0),
+                richText = true,
+                normal = new GUIStyleState()
+                {
+                    textColor = inputTextShadowColor
+                }
+            };
+
+            GUI.Label(new Rect(borderedBoxContentPartRect.x + textFieldMarginLeft + inputTextShadowPositionX, borderedBoxContentPartRect.y + textFieldMarginTop +
+                inputTextShadowPositionY, borderedBoxContentPartRect.width - textFieldMarginRight, inputTextFieldHeight), rawInput.RemoveTags("color"), inputTextShadowStyle);
+        }
+
         GUI.SetNextControlName("InputField");
         
-        string _input = GUI.TextField(new Rect(borderedBoxContentPartRect.x + textFieldMarginLeft, borderedBoxContentPartRect.y + textFieldMarginTop,
+        rawInput = GUI.TextField(new Rect(borderedBoxContentPartRect.x + textFieldMarginLeft, borderedBoxContentPartRect.y + textFieldMarginTop,
             borderedBoxContentPartRect.width - textFieldMarginRight, inputTextFieldHeight), $"{input}" +
             $"{(!string.IsNullOrEmpty(inputSuggestion) ? $"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>" : string.Empty)}",
             inputTextFieldStyle);
 
-        input = !string.IsNullOrEmpty(inputSuggestion) ? _input.Replace($"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>", string.Empty)
-            : _input;
+        input = !string.IsNullOrEmpty(inputSuggestion) ? rawInput.Replace($"<color={inputSuggestionTextColor.ToString().ToLower()}>{inputSuggestion}</color>", string.Empty)
+            : rawInput;
 
         GUI.FocusControl("InputField");
 

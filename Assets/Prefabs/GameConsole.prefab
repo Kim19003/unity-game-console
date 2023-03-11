@@ -55,25 +55,35 @@ MonoBehaviour:
   outputErrorTextColor: 17
   outputBoxHeight: 200
   outputLabelHeight: 20
+  outputLabelHasShadow: 1
+  outputLabelShadowFontSize: 1
+  outputLabelShadowColor: {r: 0, g: 0, b: 0, a: 1}
+  outputLabelShadowPositionX: 1
+  outputLabelShadowPositionY: 1
   outputBoxBackgroundTexture: {fileID: 2800000, guid: 61b46303984866e41ab5e860fffc8794,
     type: 3}
   outputBoxBackgroundColor: {r: 0, g: 0, b: 0, a: 1}
-  outputBoxBackgroundColorAlpha: 1
+  outputBoxBackgroundColorAlpha: 0.9
   outputBoxBorderBackgroundTexture: {fileID: 2800000, guid: aa0fa93ac84ab2e41a9edefa3c739c30,
     type: 3}
   outputBoxBorderSize: 2
   outputBoxBorderBackgroundColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-  outputBoxBorderBackgroundColorAlpha: 1
+  outputBoxBorderBackgroundColorAlpha: 0.9
   showTimestamps: 1
   timestampsColor: 8
   timestampsUseParentColor: 1
   inputTextFieldHeight: 20
+  inputTextHasShadow: 1
+  inputTextShadowFontSize: 1
+  inputTextShadowColor: {r: 0, g: 0, b: 0, a: 1}
+  inputTextShadowPositionX: 1
+  inputTextShadowPositionY: 1
   inputBoxBackgroundTexture: {fileID: 2800000, guid: e77b75625fdfda6438f71b07c0ccee7c,
     type: 3}
   inputBoxBackgroundColor: {r: 0, g: 0, b: 0, a: 1}
-  inputBoxBackgroundColorAlpha: 1
+  inputBoxBackgroundColorAlpha: 0.9
   inputBoxBorderBackgroundTexture: {fileID: 2800000, guid: 74ca9346393455b4d8b53b061b75f2ce,
     type: 3}
   inputBoxBorderSize: 2
   inputBoxBorderBackgroundColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-  inputBoxBorderBackgroundColorAlpha: 1
+  inputBoxBorderBackgroundColorAlpha: 0.9

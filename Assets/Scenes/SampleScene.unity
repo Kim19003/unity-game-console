@@ -1865,6 +1865,21 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
         type: 3}
+      propertyPath: inputTextHasShadow
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
+        type: 3}
+      propertyPath: outputLabelHasShadow
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
+        type: 3}
+      propertyPath: outputLabelShadowColor.a
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
+        type: 3}
       propertyPath: timestampsUseParentColor
       value: 1
       objectReference: {fileID: 0}
@@ -1877,6 +1892,11 @@ PrefabInstance:
         type: 3}
       propertyPath: inputBoxBackgroundColor.g
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
+        type: 3}
+      propertyPath: outputLabelShadowFontSize
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
         type: 3}
@@ -1906,12 +1926,22 @@ PrefabInstance:
     - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
         type: 3}
       propertyPath: inputBoxBackgroundColorAlpha
-      value: 1
+      value: 0.9
       objectReference: {fileID: 0}
     - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
         type: 3}
       propertyPath: outputBoxBackgroundColorAlpha
-      value: 1
+      value: 0.9
+      objectReference: {fileID: 0}
+    - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
+        type: 3}
+      propertyPath: inputBoxBorderBackgroundColorAlpha
+      value: 0.9
+      objectReference: {fileID: 0}
+    - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
+        type: 3}
+      propertyPath: outputBoxBorderBackgroundColorAlpha
+      value: 0.9
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 2a00bbb554c27e3419149f506a6b6b3b, type: 3}

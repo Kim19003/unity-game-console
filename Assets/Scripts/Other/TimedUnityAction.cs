@@ -102,25 +102,29 @@ namespace Assets.Scripts.Other
                     nextActionCallTime = startDelay;
                 }
 
-                nextActionCallTime += interval;
-
                 startOver = false;
             }
 
             float currentTimeHere = currentTimeElsewhere - currentTimeElsewhereAtFirstRun;
 
+            bool actionCalled = false;
+
+            if (currentTimeHere >= nextActionCallTime)
+            {
+                started = true;
+
+                action();
+                nextActionCallTime += interval;
+                actionCalled = true;
+            }
+
             if (disableAfter > 0f && currentTimeHere >= disableAfter)
             {
                 Disable();
             }
-            else if (currentTimeHere > nextActionCallTime)
+
+            if (actionCalled)
             {
-                action();
-
-                nextActionCallTime += interval;
-
-                started = true;
-
                 return true;
             }
 

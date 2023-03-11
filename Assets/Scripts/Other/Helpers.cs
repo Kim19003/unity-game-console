@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Assets.Scripts.Extensions;
+using System;
 using UnityEngine;
 
 namespace Assets.Scripts.Other
@@ -142,6 +143,20 @@ namespace Assets.Scripts.Other
             result.Apply();
 
             return result;
+        }
+
+        public static Texture2D MakeConsoleTexture(Texture2D texture, Color color)
+        {
+            if (texture == null)
+            {
+                texture = MakeTexture(1, 1, color);
+            }
+            else if (color.a > 0)
+            {
+                texture.FillWithColor(color);
+            }
+
+            return texture;
         }
 
         public static float GetTimeMode(UnityTimeMode timeMode)
