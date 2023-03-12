@@ -91,7 +91,7 @@ namespace Assets.Scripts.Other
                 throw new ArgumentException("Disable after time must be greater than or equal to 0.");
             }
 
-            float currentTimeElsewhere = Helpers.GetTimeMode(timeMode);
+            float currentTimeElsewhere = GameConsoleHelpers.GetTimeMode(timeMode);
 
             if (startOver)
             {

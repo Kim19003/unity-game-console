@@ -4,13 +4,12 @@ using Assets.Scripts.Other;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel.Design;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using static UnityEditor.Progress;
 using Color = UnityEngine.Color;
 using GameConsoleConvert = Assets.Scripts.Other.GameConsoleConvert;
+using LogType = Assets.Scripts.Other.LogType;
 using TextEditor = UnityEngine.TextEditor;
 
 public class GameConsole : MonoBehaviour
@@ -72,6 +71,7 @@ public class GameConsole : MonoBehaviour
     private readonly List<object> commands = new List<object>();
     private readonly List<GameConsoleOutput> outputs = new List<GameConsoleOutput>();
     private readonly HashSet<string> inputs = new HashSet<string>();
+    private readonly List<(string Log, LogType Type)> logs = new List<(string Log, LogType Type)>();
 
     private GUIStyle outputBoxStyle, inputBoxStyle, outputBoxBorderStyle, inputBoxBorderStyle, outputLabelStyle, inputTextFieldStyle;
 
@@ -98,10 +98,10 @@ public class GameConsole : MonoBehaviour
             font = Resources.GetBuiltinResource<Font>("Arial.ttf");
         }
 
-        outputBoxBackgroundTexture = Helpers.MakeConsoleTexture(outputBoxBackgroundTexture, new Color(outputBoxBackgroundColor.r, outputBoxBackgroundColor.g, outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha));
-        outputBoxBorderBackgroundTexture = Helpers.MakeConsoleTexture(outputBoxBorderBackgroundTexture, new Color(outputBoxBorderBackgroundColor.r, outputBoxBorderBackgroundColor.g, outputBoxBorderBackgroundColor.b, outputBoxBorderBackgroundColorAlpha));
-        inputBoxBackgroundTexture = Helpers.MakeConsoleTexture(inputBoxBackgroundTexture, new Color(inputBoxBackgroundColor.r, inputBoxBackgroundColor.g, inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha));
-        inputBoxBorderBackgroundTexture = Helpers.MakeConsoleTexture(inputBoxBorderBackgroundTexture, new Color(inputBoxBorderBackgroundColor.r, inputBoxBorderBackgroundColor.g, inputBoxBorderBackgroundColor.b, inputBoxBorderBackgroundColorAlpha));
+        outputBoxBackgroundTexture = GameConsoleHelpers.MakeConsoleTexture(outputBoxBackgroundTexture, new Color(outputBoxBackgroundColor.r, outputBoxBackgroundColor.g, outputBoxBackgroundColor.b, outputBoxBackgroundColorAlpha));
+        outputBoxBorderBackgroundTexture = GameConsoleHelpers.MakeConsoleTexture(outputBoxBorderBackgroundTexture, new Color(outputBoxBorderBackgroundColor.r, outputBoxBorderBackgroundColor.g, outputBoxBorderBackgroundColor.b, outputBoxBorderBackgroundColorAlpha));
+        inputBoxBackgroundTexture = GameConsoleHelpers.MakeConsoleTexture(inputBoxBackgroundTexture, new Color(inputBoxBackgroundColor.r, inputBoxBackgroundColor.g, inputBoxBackgroundColor.b, inputBoxBackgroundColorAlpha));
+        inputBoxBorderBackgroundTexture = GameConsoleHelpers.MakeConsoleTexture(inputBoxBorderBackgroundTexture, new Color(inputBoxBorderBackgroundColor.r, inputBoxBorderBackgroundColor.g, inputBoxBorderBackgroundColor.b, inputBoxBorderBackgroundColorAlpha));
 
         outputBoxStyle = new GUIStyle()
         {
@@ -175,6 +175,8 @@ public class GameConsole : MonoBehaviour
                 Print($"{commandFormat} — {consoleCommand.CommandDescription}", ConsoleOutputType.Explanation);
             }
         };
+        
+        // ---------------------------------------
 
         GameConsoleCommand<string> help_of = new GameConsoleCommand<string>(
             id: $"{nameof(help_of)}",
@@ -202,6 +204,8 @@ public class GameConsole : MonoBehaviour
             return $"\"{commands.Cast<GameConsoleCommandBase>().Where(c => c.CommandId != help_of.CommandId).Select(c => c.CommandId).GetRandomElement()}\"";
         });
 
+        // ---------------------------------------
+
         GameConsoleCommand clear = new GameConsoleCommand(
             id: $"{nameof(clear)}",
             description: "Clear the console",
@@ -211,6 +215,8 @@ public class GameConsole : MonoBehaviour
         {
             Clear();
         };
+
+        // ---------------------------------------
 
         GameConsoleCommand<string> print = new GameConsoleCommand<string>(
             id: $"{nameof(print)}",
@@ -222,6 +228,8 @@ public class GameConsole : MonoBehaviour
             Print(text, ConsoleOutputType.Explanation);
         };
 
+        // ---------------------------------------
+
         GameConsoleCommand quit = new GameConsoleCommand(
             id: $"{nameof(quit)}",
             description: "Quit the game",
@@ -231,6 +239,8 @@ public class GameConsole : MonoBehaviour
         {
             Application.Quit();
         };
+
+        // ---------------------------------------
 
         GameConsoleCommand<string> load_scene = new GameConsoleCommand<string>(
             id: $"{nameof(load_scene)}",
@@ -252,6 +262,8 @@ public class GameConsole : MonoBehaviour
             }
         };
 
+        // ---------------------------------------
+
         GameConsoleCommand reload = new GameConsoleCommand(
             id: $"{nameof(reload)}",
             description: "Reload the current scene",
@@ -263,6 +275,8 @@ public class GameConsole : MonoBehaviour
             Print($"Reloaded the current scene", ConsoleOutputType.Explanation);
         };
 
+        // ---------------------------------------
+
         GameConsoleCommand fullscreen = new GameConsoleCommand(
             id: $"{nameof(fullscreen)}",
             description: "Switch to the fullscreen",
@@ -273,6 +287,8 @@ public class GameConsole : MonoBehaviour
             Screen.fullScreen = !Screen.fullScreen;
             Print($"Fullscreen: {Screen.fullScreen}", ConsoleOutputType.Explanation);
         };
+
+        // ---------------------------------------
 
         GameConsoleCommand<string> destroy = new GameConsoleCommand<string>(
             id: $"{nameof(destroy)}",
@@ -292,6 +308,8 @@ public class GameConsole : MonoBehaviour
                 PrintNotFoundError("Game object", gameObjectName);
             }
         };
+
+        // ---------------------------------------
 
         GameConsoleCommand<string, string> set_active = new GameConsoleCommand<string, string>(
             id: $"{nameof(set_active)}",
@@ -321,6 +339,8 @@ public class GameConsole : MonoBehaviour
             }
         };
 
+        // ---------------------------------------
+
         GameConsoleCommand<string, string> get_attribute_of = new GameConsoleCommand<string, string>(
             id: $"{nameof(get_attribute_of)}",
             description: "Find a game object by name and get it's attribute value",
@@ -347,6 +367,8 @@ public class GameConsole : MonoBehaviour
                 PrintNotFoundError("Game object", gameObjectName);
             }
         };
+
+        // ---------------------------------------
 
         GameConsoleCommand<string, string, string> set_attribute_of = new GameConsoleCommand<string, string, string>(
             id: $"{nameof(set_attribute_of)}",
@@ -379,6 +401,8 @@ public class GameConsole : MonoBehaviour
             }
         };
 
+        // ---------------------------------------
+
         GameConsoleCommand get_admitted_attribute_names = new GameConsoleCommand(
             id: $"{nameof(get_admitted_attribute_names)}",
             description: "Get the GameObject type's admitted attribute names",
@@ -392,6 +416,8 @@ public class GameConsole : MonoBehaviour
             }
         };
 
+        // ---------------------------------------
+
         GameConsoleCommand get_command_ids = new GameConsoleCommand(
             id: $"{nameof(get_command_ids)}",
             description: "Get all command ids",
@@ -404,6 +430,8 @@ public class GameConsole : MonoBehaviour
                 Print($"{command.CommandId}", ConsoleOutputType.Explanation);
             }
         };
+
+        // ---------------------------------------
 
         GameConsoleCommand<string> set_timescale = new GameConsoleCommand<string>(
             id: $"{nameof(set_timescale)}",
@@ -424,6 +452,8 @@ public class GameConsole : MonoBehaviour
                 PrintIncorrectTypeError("Argument", nameof(timeScale));
             }
         };
+
+        // ---------------------------------------
 
         GameConsoleCommand<string, string, string> set_as_timed = new GameConsoleCommand<string, string, string>(
             id: $"{nameof(set_as_timed)}",
@@ -507,6 +537,8 @@ public class GameConsole : MonoBehaviour
             }
         };
 
+        // ---------------------------------------
+
         GameConsoleCommand<string> stop_timed = new GameConsoleCommand<string>(
             id: $"{nameof(stop_timed)}",
             description: "Stop an active timed command",
@@ -542,6 +574,8 @@ public class GameConsole : MonoBehaviour
             }
         };
 
+        // ---------------------------------------
+
         GameConsoleCommand get_all_timed = new GameConsoleCommand(
             id: $"{nameof(get_all_timed)}",
             description: "Get all the active timed commands",
@@ -565,6 +599,8 @@ public class GameConsole : MonoBehaviour
                 Print($"No active timed commands found", ConsoleOutputType.Error);
             }
         };
+
+        // ---------------------------------------
 
         GameConsoleCommand<string, string> set_alias = new GameConsoleCommand<string, string>(
             id: $"{nameof(set_alias)}",
@@ -601,6 +637,8 @@ public class GameConsole : MonoBehaviour
             }
         };
 
+        // ---------------------------------------
+
         GameConsoleCommand<string> remove_alias = new GameConsoleCommand<string>(
             id: $"{nameof(remove_alias)}",
             description: "Remove alias",
@@ -631,6 +669,8 @@ public class GameConsole : MonoBehaviour
             }
         };
 
+        // ---------------------------------------
+
         GameConsoleCommand get_all_aliases = new GameConsoleCommand(
             id: $"{nameof(get_all_aliases)}",
             description: "Get all aliases",
@@ -652,6 +692,32 @@ public class GameConsole : MonoBehaviour
                 Print($"No aliases found", ConsoleOutputType.Error);
             }
         };
+
+        // ---------------------------------------
+
+        GameConsoleCommand get_all_logs = new GameConsoleCommand(
+            id: $"{nameof(get_all_logs)}",
+            description: "Get all logs",
+            format: $"{nameof(get_all_logs)}",
+            examples: new string[] { $"{nameof(get_all_logs)}" });
+        get_all_logs.Action = () =>
+        {
+            if (logs.Count > 0)
+            {
+                int i = 0;
+                foreach ((string Log, LogType Type) log in logs)
+                {
+                    Print($"{i + 1}. [{GameConsoleHelpers.GetCleanLogType(log.Type)}] {log.Log}", ConsoleOutputType.Explanation);
+                    i++;
+                }
+            }
+            else
+            {
+                Print($"No logs found", ConsoleOutputType.Error);
+            }
+        };
+
+        // ---------------------------------------
 
         commands.AddRange(new List<object>()
         {
@@ -676,6 +742,7 @@ public class GameConsole : MonoBehaviour
             set_alias,
             remove_alias,
             get_all_aliases,
+            get_all_logs,
         });
         #endregion
     }
@@ -1716,6 +1783,58 @@ public class GameConsole : MonoBehaviour
     public void Clear()
     {
         outputs.Clear();
+    }
+
+    /// <summary>
+    /// Create a log to the Unity's developer console.
+    /// </summary>
+    public void Log(string log, bool printToGameConsole = false)
+    {
+        Debug.Log(log);
+        if (printToGameConsole)
+        { 
+            Print($"[{GameConsoleHelpers.GetCleanLogType(LogType.Normal)}] {log}", ConsoleOutputType.Explanation);
+        }
+        logs.Add((log, LogType.Normal));
+    }
+
+    /// <summary>
+    /// Create a log to the Unity's developer console.
+    /// </summary>
+    public void LogWarning(string log, bool printToGameConsole = false)
+    {
+        Debug.LogWarning(log);
+        if (printToGameConsole)
+        {
+            Print($"[{GameConsoleHelpers.GetCleanLogType(LogType.Warning)}] {log}", ConsoleOutputType.Warning);
+        }
+        logs.Add((log, LogType.Warning));
+    }
+
+    /// <summary>
+    /// Create a log to the Unity's developer console.
+    /// </summary>
+    public void LogError(string log, bool printToGameConsole = false)
+    {
+        Debug.LogError(log);
+        if (printToGameConsole)
+        {
+            Print($"[{GameConsoleHelpers.GetCleanLogType(LogType.Error)}] {log}", ConsoleOutputType.Error);
+        }
+        logs.Add((log, LogType.Error));
+    }
+
+    /// <summary>
+    /// Create a log to the Unity's developer console.
+    /// </summary>
+    public void LogException(Exception exception, bool printToGameConsole = false)
+    {
+        Debug.LogException(exception);
+        if (printToGameConsole)
+        {
+            Print($"[{GameConsoleHelpers.GetCleanLogType(LogType.Exception)}] {exception}", ConsoleOutputType.Error);
+        }
+        logs.Add((exception.ToString(), LogType.Exception));
     }
     #endregion
 }
