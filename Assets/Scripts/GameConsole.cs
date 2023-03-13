@@ -62,7 +62,7 @@ public class GameConsole : MonoBehaviour
     [SerializeField] private float inputBoxBorderBackgroundColorAlpha = 1f;
 
     #region Boring variables
-    private readonly float canDeactivateConsoleAfterTime = 0.7f;
+    private readonly float canDeactivateConsoleAfterTime = 1f;
     private readonly float canRemoveWrappersWithBackspaceAfterTime = 0.3f;
     private readonly float canScrollSuggestionsAfterTime = 0.2f;
     private readonly float canCompleteSuggestionAfterTime = 0.2f;
@@ -301,7 +301,9 @@ public class GameConsole : MonoBehaviour
 
             if (gameObject != null)
             {
+                string gameObjectTransformName = gameObject.transform.name;
                 Destroy(gameObject);
+                Print($"Destroyed {gameObjectTransformName}", ConsoleOutputType.Explanation);
             }
             else
             {
@@ -796,7 +798,13 @@ public class GameConsole : MonoBehaviour
             timedCommandCallerCommands.Remove(timedCommandCallerCommandToRemove);
         }
         // ----------
+    }
 
+    private Vector2 scrollViewScrollPosition;
+    private Rect scrollViewViewRect;
+
+    private void OnGUI()
+    {
         // Coroutines
         if (!canRemoveWrappersWithBackspace && !canRemoveWrappersWithBackspaceAfterHasStarted)
         {
@@ -819,13 +827,7 @@ public class GameConsole : MonoBehaviour
             StartCoroutine(CanDeactivateConsoleAfter(canDeactivateConsoleAfterTime));
         }
         // ----------
-    }
 
-    private Vector2 scrollViewScrollPosition;
-    private Rect scrollViewViewRect;
-
-    private void OnGUI()
-    {
         if (!activated)
         {
             return;

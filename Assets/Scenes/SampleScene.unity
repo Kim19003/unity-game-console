@@ -1855,6 +1855,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
         type: 3}
+      propertyPath: activationKey
+      value: 92
+      objectReference: {fileID: 0}
+    - target: {fileID: 3522166427478457867, guid: 2a00bbb554c27e3419149f506a6b6b3b,
+        type: 3}
       propertyPath: showTimestamps
       value: 1
       objectReference: {fileID: 0}

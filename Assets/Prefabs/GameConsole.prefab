@@ -44,7 +44,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aff4a3b63d5d1834fac808cf946c1dfd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  activationKey: 27
+  activationKey: 92
   font: {fileID: 12800000, guid: a9df96cd00a9a214684058f9a509dd4e, type: 3}
   fontSize: 18
   defaultTextColor: {r: 1, g: 1, b: 1, a: 1}
